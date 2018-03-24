@@ -1,5 +1,6 @@
 import torch
 from torch import nn as nn
+import numpy as np
 
 
 class Controller(nn.Module):
@@ -25,18 +26,27 @@ class NTMReadHead(nn.Module):
     def __init__(self):
         super(NTMReadHead, self).__init__()
 
+    def forward(self, w, memory):
+        """(2)
+        """
+        pass
 
 class NTMWriteHead(nn.Module):
     def __init__(self):
         super(NTMWriteHead, self).__init__()
 
+    def forward(self, w, memory, e, a):
+        """(3) and (4)
+        """
+        pass
 
-class NTMMemory(nn.Module):
+
+class NTMAttention(nn.Module):
     def __init__(self):
-        super(NTMMemory, self).__init__()
+        super(NTMAttention, self).__init__()
 
-    def size(self):
-        """Returns the size of the controller output (100 for us)
+    def forward(self, beta, kappa, gamma, g, s):
+        """(5), (6), (7), (8), (9)
         """
         pass
 
@@ -45,12 +55,13 @@ class NTM(nn.Module):
     """
     Neural Turing Machine
     """
-    def __init__(self, num_inputs, num_outputs, controller, memory, read_head, write_head):
+    def __init__(self, num_inputs, num_outputs, controller, attention,
+                 read_head, write_head, memory_size, memory_feature_size):
         """Initialize the NTM.
         :param num_inputs: External input size.
         :param num_outputs: External output size.
         :param controller: :class:`Controller`
-        :param memory: :class:`NTMMemory`
+        :param attention: :class:`NTMAttention`
         :param read_head: list of :class:`NTMReadHead`
         :param write_head: list of :class:`NTMWriteHead`
         """
@@ -59,11 +70,32 @@ class NTM(nn.Module):
         self.num_inputs = num_inputs
         self.num_outputs = num_outputs
         self.controller = controller
-        self.memory = memory
+        self.attention = attention
         self.read_head = read_head
         self.write_head = write_head
+        self.memory = np.zeros(shape=(memory_size, memory_feature_size))
 
-        self.N, self.M = self.memory.size()
-        _, self.controller_size = controller.size()
+    def convert_to_params(self, output):
+        """Transform output from controller into parameters for attention and write heads
+        :param output: output from controller.
+        """
+        beta, kappa, gamma, g, s, e, a = 0, 0, 0, 0, 0, 0, 0
+        return beta, kappa, gamma, g, s, e, a
+
+    def forward(self, x, r):
+        """Perform forward pass from the NTM.
+        :param x: current input.
+        :param r: previous read head output.
+        """
+
+        o = self.controller.forward(x, r)
+        beta, kappa, gamma, g, s, e, a = self.convert_to_params(o)
+        w = self.attention.forward(beta, kappa, gamma, g, s)
+        next_r = self.read_head.forward(w, self.memory)
+        self.memory = self.write_head.forward(w, self.memory, e, a)
+        return next_r
+
+
+
 
 
