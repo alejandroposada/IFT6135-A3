@@ -1,7 +1,7 @@
 import torch
 from torch import nn as nn
 import numpy as np
-
+import torch.nn.functional as F
 
 class Controller(nn.Module):
     """
@@ -75,6 +75,9 @@ class NTM(nn.Module):
         self.write_head = write_head
         self.memory = np.zeros(shape=(memory_size, memory_feature_size))
 
+        # Initialize a fully connected layer to produce the actual output:
+        self.fc = nn.Linear(self.controller.size(), num_outputs)
+
     def convert_to_params(self, output):
         """Transform output from controller into parameters for attention and write heads
         :param output: output from controller.
@@ -93,7 +96,11 @@ class NTM(nn.Module):
         w = self.attention.forward(beta, kappa, gamma, g, s)
         next_r = self.read_head.forward(w, self.memory)
         self.memory = self.write_head.forward(w, self.memory, e, a)
-        return next_r
+
+        # Generate Output
+        output = F.sigmoid(self.fc(o))
+
+        return output, next_r
 
 
 
