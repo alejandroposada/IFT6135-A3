@@ -32,7 +32,7 @@ class NTMWriteHead(nn.Module):
     def __init__(self):
         super(NTMWriteHead, self).__init__()
 
-    def forward(self, w, memory, e, a):
+    def forward(self, w, memory, params):
         """(3) and (4)
         """
         pass
@@ -42,7 +42,7 @@ class NTMAttention(nn.Module):
     def __init__(self):
         super(NTMAttention, self).__init__()
 
-    def forward(self, beta, kappa, gamma, g, s):
+    def forward(self, params):
         """(5), (6), (7), (8), (9)
         """
         pass
@@ -125,10 +125,10 @@ class NTM(nn.Module):
         """
 
         o = self.controller.forward(x, r)
-        beta, kappa, gamma, g, s, e, a = self.convert_to_params(o)
-        w = self.attention.forward(beta, kappa, gamma, g, s)
+        params = self.convert_to_params(o)
+        w = self.attention.forward(params)
         next_r = self.read_head.forward(w, self.memory)
-        self.memory = self.write_head.forward(w, self.memory, e, a)
+        self.memory = self.write_head.forward(w, self.memory, params)
 
         # Generate Output
         output = F.sigmoid(self.fc(o))
