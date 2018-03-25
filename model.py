@@ -1,25 +1,80 @@
 import torch
-from torch import nn as nn
 import numpy as np
+import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.init import xavier_uniform
+
 
 class Controller(nn.Module):
     """
-    controller for NTM
+    Controller for NTM.
     """
-    def __init__(self, network):
+    def __init__(self, network, input_dim, output_dim, num_layers):
         """network: object which takes as input r_t and x_t and returns h_t
         """
         super(Controller, self).__init__()
-        self.network = network
+        self.network = network            # A LSTM or MLP network
+        self.input_dim = input_dim        # (8 + 1) + M*num_heads
+        self.output_dim = output_dim      # 100
+        self.num_layers = num_layers      # 1
 
-    def forward(self, x, r):
-        pass
+    def reset_parameters(self):
+        for param in self.network.parameters():
+            if param.dim() == 1:
+                nn.init.constant(param, 0)
+            else:
+                xavier_uniform(param)
 
     def size(self):
-        """Returns the size of the controller output (100 for us)
+        """Returns the size of the controller 
         """
-        pass
+        return self.num_inputs, self.num_outputs
+
+
+class LSTMController(Controller):
+    """
+    LSTM controller for the NTM.
+    """
+    def __init__(self, input_dim, output_dim, num_layers):
+        super().__init__(nn.LSTM(input_size=input_dim,
+                            hidden_size=output_dim,
+                            num_layers=num_layers), input_dim, output_dim, num_layers)
+
+        # From https://github.com/fanxiao001/ift6135-assignment/blob/master/assignment3/NTM/controller.py
+        self.lstm_h_bias = Parameter(torch.randn(self.num_layers, 1, self.num_outputs) * 0.05)
+        self.lstm_c_bias = Parameter(torch.randn(self.num_layers, 1, self.num_outputs) * 0.05)
+
+        self.reset_parameters()
+
+    def forward(self, x, r, state):
+        x = x.unsqueeze(0)
+        x = torch.cat([x] + r, dim=1)
+        output, state = self.lstm(x, state)
+        return output.squeeze(0), state
+
+    def create_state(self, batch_size):
+        # Dimension: (num_layers * num_directions, batch, hidden_size)
+        # From https://github.com/fanxiao001/ift6135-assignment/blob/master/assignment3/NTM/controller.py
+        lstm_h = self.lstm_h_bias.clone().repeat(1, batch_size, 1)
+        lstm_c = self.lstm_c_bias.clone().repeat(1, batch_size, 1)
+        return lstm_h, lstm_c
+
+
+class MLPController(Controller):
+    """
+    MLP controller for the NTM.
+    """
+    def __init__(self, input_dim, output_dim, num_layers):
+        super().__init__(nn.Linear(input_dim, output_dim), input_dim, output_dim, num_layers)
+
+    def forward(self, x, r, state):
+        x = x.unsqueeze(0)
+        x = torch.cat([x] + r, dim=1)
+        output = self.mlp(x)
+        return output.squeeze(0), state
+
+    def create_state(self, batch_size):
+        return torch.zeros(1, batch_size, 1)
 
 
 class NTMReadHead(nn.Module):
