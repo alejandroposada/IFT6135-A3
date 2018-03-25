@@ -2,6 +2,7 @@ import torch
 from torch import nn as nn
 import numpy as np
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 class Controller(nn.Module):
     """
@@ -64,6 +65,8 @@ class NTM(nn.Module):
         :param attention: :class:`NTMAttention`
         :param read_head: list of :class:`NTMReadHead`
         :param write_head: list of :class:`NTMWriteHead`
+        :param memory_size: N in the paper
+        :param memory_feature_size: M in the paper
         """
         super(NTM, self).__init__()
 
@@ -73,16 +76,39 @@ class NTM(nn.Module):
         self.attention = attention
         self.read_head = read_head
         self.write_head = write_head
-        self.memory = np.zeros(shape=(memory_size, memory_feature_size))
+        self.memory_size = memory_size
+        self.memory_feature_size = memory_feature_size
+        self.memory = Variable(np.zeros(shape=(self.memory_size, self.memory_feature_size)))
 
         # Initialize a fully connected layer to produce the actual output:
         self.fc = nn.Linear(self.controller.size(), num_outputs)
+
+        # Corresponding to beta, kappa, gamma, g, s, e, a sizes from the paper
+        self.params_lengths = [self.memory_feature_size, 1, 1, 3, 1,
+                               self.memory_feature_size, self.memory_feature_size]
+
+        self.fc_params = nn.Linear(controller.size(), sum(self.params_lengths))
+
 
     def convert_to_params(self, output):
         """Transform output from controller into parameters for attention and write heads
         :param output: output from controller.
         """
-        beta, kappa, gamma, g, s, e, a = 0, 0, 0, 0, 0, 0, 0
+        params = list()
+        o = self.fc_write(output)
+        #o = Variable(torch.FloatTensor(o))
+        l = np.cumsum([0] + self.params_lengths)
+        activations = [F.softplus,
+                       lambda x: x,
+                       lambda x: 1 + F.softplus(x),
+                       F.sigmoid,
+                       lambda x: F.softmax(F.softplus(x)),
+                       F.sigmoid,
+                       F.sigmoid]
+        for i in range(len(l)-1):
+            params.append(activations[i](o[l[i]:l[i+1]]))
+
+        beta, kappa, gamma, g, s, e, a = params
         return beta, kappa, gamma, g, s, e, a
 
     def forward(self, x, r):
