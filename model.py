@@ -78,11 +78,6 @@ class MLPController(Controller):
 
     def create_state(self, batch_size):
         return torch.zeros(1, batch_size, 1)
-
-        self.size = output_dim
-
-    def forward(self, x, r):
-        return Variable(torch.FloatTensor(np.random.rand(self.size)))
       
 
 class NTMReadHead(nn.Module):
@@ -95,7 +90,8 @@ class NTMReadHead(nn.Module):
         the number of locations and M being the dimension of each stored feature.
         2) Expects weight, w, to be a (batch_size x N) vector representing the weighting on each
         memory row vector.
-        3) output r_t is a vector (batch_size x M)
+
+        output 'r' is a vector (batch_size x M)
         """
         return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
 
@@ -112,15 +108,15 @@ class NTMWriteHead(nn.Module):
         memory row vector.
         3) Expects erase vector 'e' (from params dict) to be a (batch_size x M)
         matrix with each row being the strength with which we want to erase from memory.
-        4) Expects add vector 'a' (from params dict) to be a (batch_size x M) matrix with each row being the strength
-        with which we want to add to memory.
+        4) Expects add vector 'a' (from params dict) to be a (batch_size x M) matrix with
+        each row being the strength with which we want to add to memory.
         """
         e = params['e']
         a = params['a']
         prev_memory = memory
-        # mem_size = prev_memory.size()
+        mem_size = prev_memory.size()
         # I believe we need to Variable 'memory'. Not sure...
-        # memory = Variable(torch.Tensor(mem_size[0], mem_size[1], mem_size[2]))
+        memory = Variable(torch.Tensor(mem_size[0], mem_size[1], mem_size[2]))
         for example in range(len(memory)):  # since first dim is batch_size
             memory[example] = prev_memory[example] * (1 - torch.ger(w[example], e[example]))  # Erase
             memory[example] = memory[example] + torch.ger(w[example], a[example])  # Add
@@ -189,7 +185,8 @@ class NTM(nn.Module):
     """
     Neural Turing Machine
     """
-    def __init__(self, num_inputs, num_outputs, controller_size, memory_size, memory_feature_size, integer_shift):
+    def __init__(self, num_inputs, num_outputs, controller_size,
+                 memory_size, memory_feature_size, integer_shift):
         """Initialize the NTM.
         :param num_inputs: External input size.
         :param num_outputs: External output size.
@@ -218,7 +215,7 @@ class NTM(nn.Module):
         self.memory = Variable(torch.zeros(self.memory_size, self.memory_feature_size))
 
         #  Initialize weight
-        self.weight = Variable(torch.zeros())
+        self.weight = Variable(torch.zeros(self.memory_size))
 
         # Initialize a fully connected layer to produce the actual output:
         self.fc = nn.Linear(self.controller_size, self.num_outputs)
@@ -284,5 +281,3 @@ ntm = NTM(num_inputs=9, num_outputs=9, controller_size=100,
 x = ntm.forward(x=0, r=1)
 
 print('done')
-
-
