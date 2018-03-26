@@ -2,10 +2,10 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import Parameter
 from torch.nn.init import xavier_uniform
-
-=======
 from torch.autograd import Variable
+
 
 class Controller(nn.Module):
     """
@@ -78,7 +78,7 @@ class MLPController(Controller):
 
     def create_state(self, batch_size):
         return torch.zeros(1, batch_size, 1)
-=======
+
         self.size = output_dim
 
     def forward(self, x, r):
@@ -90,28 +90,99 @@ class NTMReadHead(nn.Module):
         super(NTMReadHead, self).__init__()
 
     def forward(self, w, memory):
-        """(2)
         """
-        pass
+        1) Expects memory to be a (batch_size x N x M) matrix, with N being
+        the number of locations and M being the dimension of each stored feature.
+        2) Expects weight, w, to be a (batch_size x N) vector representing the weighting on each
+        memory row vector.
+        3) output r_t is a vector (batch_size x M)
+        """
+        return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
+
 
 class NTMWriteHead(nn.Module):
     def __init__(self):
         super(NTMWriteHead, self).__init__()
 
     def forward(self, w, memory, params):
-        """(3) and (4)
         """
-        pass
+        1) Expects memory to be a (batch_size x N x M) matrix, with N being
+        the number of locations and M being the dimension of each stored feature.
+        2) Expects weight, w, to be a (batch_size x N) matrix representing the weighting on each
+        memory row vector.
+        3) Expects erase vector 'e' (from params dict) to be a (batch_size x M)
+        matrix with each row being the strength with which we want to erase from memory.
+        4) Expects add vector 'a' (from params dict) to be a (batch_size x M) matrix with each row being the strength
+        with which we want to add to memory.
+        """
+        e = params['e']
+        a = params['a']
+        prev_memory = memory
+        # mem_size = prev_memory.size()
+        # I believe we need to Variable 'memory'. Not sure...
+        # memory = Variable(torch.Tensor(mem_size[0], mem_size[1], mem_size[2]))
+        for example in range(len(memory)):  # since first dim is batch_size
+            memory[example] = prev_memory[example] * (1 - torch.ger(w[example], e[example]))  # Erase
+            memory[example] = memory[example] + torch.ger(w[example], a[example])  # Add
+
+        return memory
 
 
 class NTMAttention(nn.Module):
     def __init__(self):
         super(NTMAttention, self).__init__()
 
-    def forward(self, params):
-        """(5), (6), (7), (8), (9)
+    def measure_similarity(self, k, beta, memory):
+        k = k.view(self.batch_size, 1, -1)  # puts it in batch_size x 1 x M
+        w = F.softmax(beta * F.cosine_similarity(memory + 1e-12, k + 1e-12, dim=-1), dim=1)
+        return w
+
+    def interpolate(self, w_prev, w_c, g):
+        return g * w_c + (1 - g) * w_prev
+
+    def shift(self, w_g, s, int_shift):
+        result = Variable(torch.zeros(w_g.size()))
+        for b in range(self.batch_size):
+            result[b] = self.shift_convolve(w_g[b], s[b], int_shift)
+        return result
+
+    def shift_convolve(self, w_s, s, int_shift):
+        assert s.size(0) == int_shift
+        t = torch.cat([w_s[-2:], w_s, w_s[:2]])
+        c = F.conv1d(t.view(1, 1, -1), s.view(1, 1, -1)).view(-1)
+        return c[1:-1]
+
+    def sharpen(self, w_hat, gamma):
+        w = w_hat ** gamma
+        w = torch.div(w, torch.sum(w, dim=1).view(-1, 1) + 1e-12)
+        return w
+
+    def forward(self, params, w_prev, memory, int_shift):
         """
-        pass
+        1) Expects params dict to extract
+            - Beta (batch_size x scalar)
+            - key (batch_size x M (feature size length))
+            - gamma (batch_size x scalar)
+            - g (batch_size x scalar)
+            - shift (batch_size x M (feature size length))
+        2) the previous step's weighting (batch_size x N)
+        3) the current memory matrix (batch_size x N x M)
+
+        Outputs new weighting (batch_size x N)
+        """
+        self.beta = params['beta']
+        self.key = params['kappa']
+        self.gamma = params['gamma']
+        self.g = params['g']
+        self.s = params['s']
+        self.batch_size = len(memory)
+
+        w_c = self.measure_similarity(self.key, self.beta, memory)
+        w_g = self.interpolate(w_prev, w_c, self.g)
+        w_hat = self.shift(w_g, self.s, int_shift)
+        weight = self.sharpen(w_hat, self.gamma)
+
+        return weight
 
 
 class NTM(nn.Module):
@@ -145,6 +216,9 @@ class NTM(nn.Module):
 
         #  Initialize memory
         self.memory = Variable(torch.zeros(self.memory_size, self.memory_feature_size))
+
+        #  Initialize weight
+        self.weight = Variable(torch.zeros())
 
         # Initialize a fully connected layer to produce the actual output:
         self.fc = nn.Linear(self.controller_size, self.num_outputs)
@@ -192,9 +266,9 @@ class NTM(nn.Module):
 
         o = self.controller.forward(x, r)
         params = self.convert_to_params(o)
-        w = self.attention.forward(params)
-        next_r = self.read_head.forward(w, self.memory)
-        self.memory = self.write_head.forward(w, self.memory, params)
+        self.weight = self.attention.forward(params, self.weight, self.memory, self.integer_shift)
+        next_r = self.read_head.forward(self.weight, self.memory)
+        self.memory = self.write_head.forward(self.weight, self.memory, params)
 
         # Generate Output
         output = F.sigmoid(self.fc(o))
