@@ -48,9 +48,9 @@ class LSTMController(Controller):
         self.reset_parameters()
 
     def forward(self, x, r, state):
-        x = x.unsqueeze(0)
-        x = torch.cat([x] + r, dim=1)
-        output, state = self.lstm(x, state)
+        r = r.unsqueeze(0).repeat(x.size()[0], 1)
+        x = torch.cat((r, x), 1)
+        output, state = self(x, state)
         return output.squeeze(0), state
 
     def create_state(self, batch_size):
