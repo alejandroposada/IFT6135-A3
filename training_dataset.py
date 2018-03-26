@@ -18,7 +18,7 @@ class random_binary(Dataset):
         batch = np.ndarray(shape=(self.batch_Size, self.vector_dim + 1, seq_length+1))
         for i in range(self.batch_Size):
             sequence = np.random.binomial(1, 0.5, size=(self.vector_dim, seq_length))  # 8 x T
-            sequence = np.append(sequence, np.zeros((1, seq_length)), axis=0)     # Append 0 at the end of each vector
-            sequence = np.append(sequence, vector_end, axis=1)                    # Append x_{T+1} at the end of the seq.
+            sequence = np.append(sequence, np.zeros((1, seq_length)), axis=0)          # Append 0 at the end of each vector
+            sequence = np.append(sequence, vector_end, axis=1)                         # Append x_{T+1} at the end of the seq.
             batch[i,:,:] = sequence
         return batch
