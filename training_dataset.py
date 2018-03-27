@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 import numpy as np
 
+
 class random_binary(Dataset):
 
     def __init__(self, max_seq_length, num_sequences, vector_dim=8, batch_Size=32):
@@ -20,5 +21,5 @@ class random_binary(Dataset):
             sequence = np.random.binomial(1, 0.5, size=(self.vector_dim, seq_length))  # 8 x T
             sequence = np.append(sequence, np.zeros((1, seq_length)), axis=0)          # Append 0 at the end of each vector
             sequence = np.append(sequence, vector_end, axis=1)                         # Append x_{T+1} at the end of the seq.
-            batch[i,:,:] = sequence
+            batch[i, :, :] = sequence
         return batch
