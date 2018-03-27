@@ -13,13 +13,14 @@ class Controller(nn.Module):
     """Controller for NTM.
     """
 
-    def __init__(self, input_dim, output_dim, num_layers):
+    def __init__(self, input_dim, output_dim, num_layers, batch_size):
         """network: object which takes as input r_t and x_t and returns h_t
         """
         super(Controller, self).__init__()
         self.input_dim = input_dim        # (8 + 1) + M*num_heads
         self.output_dim = output_dim      # 100
         self.num_layers = num_layers      # 1
+        self.batch_size = batch_size      # batch size
 
     def reset_parameters(self):
         for param in self.parameters():
@@ -37,11 +38,12 @@ class Controller(nn.Module):
 class LSTMController(Controller):
     """LSTM controller for the NTM.
     """
-    def __init__(self, input_dim, output_dim, num_layers):
-        super().__init__(nn.LSTM(input_size=input_dim,
-                                 hidden_size=output_dim,
-                                 num_layers=num_layers),
-                         input_dim, output_dim)
+    def __init__(self, input_dim, output_dim, num_layers, batch_size):
+        super(LSTMController, self).__init__(input_dim, output_dim, num_layers, batch_size)
+
+        self.lstm = nn.LSTM(input_size=input_dim,
+                            hidden_size=output_dim,
+                            num_layers=num_layers)
 
         # From https://github.com/fanxiao001/ift6135-assignment/blob/master/assignment3/NTM/controller.py
         self.lstm_h_bias = Parameter(torch.randn(self.num_layers, 1, self.output_dim) * 0.05)
@@ -49,11 +51,18 @@ class LSTMController(Controller):
 
         self.reset_parameters()
 
-    def forward(self, x, r, state):
-        x = x.unsqueeze(0)
-        x = torch.cat([x] + r, dim=1)
-        output, state = self.lstm(x, state)
-        return output.squeeze(0), state
+    def forward(self, x, r, lstm_h, lstm_c):
+        """forward pass of the LSTM controller
+        """
+
+        #  Concatenate previous read state with input
+        #r = r.unsqueeze(0).repeat(x.size()[0], 1)
+        x = torch.cat((r, x.squeeze(0)), 1)
+
+        # feed into controller with previous state
+        output, state = self.lstm(x.unsqueeze(0), (lstm_h, lstm_c))
+
+        return output, state
 
     def create_state(self, batch_size):
         # Dimension: (num_layers * num_directions, batch, hidden_size)
@@ -66,8 +75,10 @@ class LSTMController(Controller):
 class MLPController(Controller):
     """MLP controller for the NTM.
     """
-    def __init__(self, input_dim, output_dim, num_layers):
-        super().__init__(nn.Linear(input_dim, output_dim), input_dim, output_dim)
+    def __init__(self, input_dim, output_dim, num_layers, batch_size):
+        super().__init__(input_dim, output_dim, num_layers, batch_size)
+
+        self.mlp = nn.Linear(input_dim, output_dim)
 
     def forward(self, x, r, state=None):
         x = x.unsqueeze(0)
@@ -75,8 +86,8 @@ class MLPController(Controller):
         output = self.mlp(x)
         return output.squeeze(0)
 
-    def create_state(self, batch_size):
-        return torch.zeros(1, batch_size, 1)
+    def create_state(self):
+        return torch.zeros(1, self.batch_size, 1)
       
 
 class NTMReadHead(nn.Module):
@@ -94,6 +105,7 @@ class NTMReadHead(nn.Module):
         output 'r' is a vector (batch_size x M)
         """
         return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
+
 
 class NTMWriteHead(nn.Module):
     def __init__(self):
@@ -128,8 +140,9 @@ class NTMAttention(nn.Module):
         super(NTMAttention, self).__init__()
 
     def measure_similarity(self, k, beta, memory):
-        k = k.view(self.batch_size, 1, -1)  # puts it in batch_size x 1 x M
-        w = F.softmax(beta * F.cosine_similarity(memory + 1e-12, k + 1e-12, dim=-1), dim=1)
+        #k = k.view(self.batch_size, 1, -1)  # puts it in batch_size x 1 x M
+        k = k.unsqueeze(1)
+        w = F.softmax(beta * F.cosine_similarity(memory + 1e-12, k + 1e-12, dim=-1))
         return w
 
     def interpolate(self, w_prev, w_c, g):
@@ -184,12 +197,14 @@ class NTM(nn.Module):
     """
     Neural Turing Machine
     """
-    def __init__(self, num_inputs, num_outputs, controller_size,
+    def __init__(self, num_inputs, num_outputs, batch_size,
+                 controller_size, controller_type, controller_layers,
                  memory_size, memory_feature_size, integer_shift):
       
         """Initialize the NTM.
         :param num_inputs: External input size.
         :param num_outputs: External output size.
+        :param batch_Size: batch size.
         :param controller_size: size of controller output layer
         :param controller_type: controller network type (LSTM or MLP)
         :param controller_layers: number of layers of controller network
@@ -201,6 +216,7 @@ class NTM(nn.Module):
 
         self.num_inputs = num_inputs
         self.num_outputs = num_outputs
+        self.batch_size = batch_size
         self.controller_size = controller_size
         self.controller_type = controller_type
         self.controller_layers = controller_layers
@@ -210,23 +226,22 @@ class NTM(nn.Module):
 
         #  Initialize components
         if self.controller_type == 'LSTM':
-            self.controller = LSTMController(input_dim=self.num_inputs,
-                                             output_dim=self.controller_size,
-                                             num_layers=controller_layers)
+            self.controller = LSTMController(input_dim=self.num_inputs+self.memory_feature_size,
+                                             output_dim=self.controller_size, num_layers=controller_layers,
+                                             batch_size=self.batch_size)
         elif self.controller_type == 'MLP':
-            self.controller = MLPController(input_dim=self.num_inputs,
-                                            output_dim=self.controller_size,
-                                            num_layers=controller_layers)
+            self.controller = MLPController(input_dim=self.num_inputs, output_dim=self.controller_size,
+                                            num_layers=controller_layers, batch_size=self.batch_size)
 
         self.attention = NTMAttention()
         self.read_head = NTMReadHead()
         self.write_head = NTMWriteHead()
 
         #  Initialize memory
-        self.memory = Variable(torch.zeros(self.memory_size, self.memory_feature_size))
+        self.memory = Variable(torch.zeros(self.batch_size, self.memory_size, self.memory_feature_size))
 
         #  Initialize weight
-        self.weight = Variable(torch.zeros(self.memory_size))
+        self.weight = Variable(torch.zeros(self.batch_size, self.memory_size))
 
         # Initialize a fully connected layer to produce the actual output:
         self.fc = nn.Linear(self.controller_size, self.num_outputs)
@@ -262,18 +277,20 @@ class NTM(nn.Module):
         o = self.fc_params(output)
         l = np.cumsum([0] + self.params_lengths)
         for idx in range(len(l)-1):
-            to_return[self.params[idx]] = self.activations[self.params[idx]](o[l[idx]:l[idx+1]])
+            to_return[self.params[idx]] = self.activations[self.params[idx]](o.squeeze(0)[:, l[idx]:l[idx+1]])
 
         return to_return
 
-    def forward(self, x, r, state=None):
+    def forward(self, x, r, lstm_h=None, lstm_c=None):
         """Perform forward pass from the NTM.
         :param x: current input.
         :param r: previous read head output.
-        :param state: previous state of the LSTM (None if using MLP)
+        :param lstm_h: LSTM previous hidden state for controller (None if using MLP)
+        :param lstm_c: LSTM previous memory state for controller (None if using MLP)
         """
         if self.controller_type == 'LSTM':
-            o, next_state = self.controller.forward(x, r, state)
+            o, state = self.controller.forward(x.unsqueeze(0), r, lstm_h, lstm_c)
+            lstm_h, lstm_c = state
         else:
             o = self.controller.forward(x, r)
 
@@ -284,5 +301,8 @@ class NTM(nn.Module):
 
         # Generate Output
         output = F.sigmoid(self.fc(o))
+
+        if self.controller_type == 'LSTM':
+            return output, next_r, lstm_h, lstm_c
 
         return output, next_r
