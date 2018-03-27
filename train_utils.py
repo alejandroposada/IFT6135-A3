@@ -3,7 +3,6 @@ import json
 from torch.autograd import Variable
 import numpy as np
 
-
 # Code snippet taken from:
 # https://github.com/loudinthecloud/pytorch-ntm/blob/db56fb86f9f68abb799ff9120f9beda64837bece/train.py#L67
 def save_checkpoint(model, batch_num, losses, costs, seq_lengths):
