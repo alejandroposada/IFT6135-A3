@@ -2,11 +2,9 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import Parameter
 from torch.nn.init import xavier_uniform
 from torch.autograd import Variable
 from torch.nn import Parameter
-
 
 
 class Controller(nn.Module):
