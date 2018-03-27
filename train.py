@@ -15,7 +15,7 @@ cuda = True
 memory_feature_size = 15
 
 #  for testing purposes only!
-ntm = NTM(num_inputs=9, num_outputs=9, controller_size=100, controller_type='LSTM', controller_layers=15,
+ntm = NTM(num_inputs=9, num_outputs=9, controller_size=100, controller_type='LSTM', controller_layers=1,
           memory_size=20, memory_feature_size=memory_feature_size, integer_shift=3)
 
 training_dataset = random_binary(max_seq_length=20, num_sequences=10, vector_dim=8, batch_Size=batch_size)
@@ -26,11 +26,11 @@ criterion = torch.nn.CrossEntropyLoss()
 
 for batch in training_dataset:
     batch = Variable(torch.FloatTensor(batch))
-    next_r = Variable(torch.FloatTensor(np.random.rand(memory_feature_size)))
-    ntm.controller.create_state(batch_size)
+    next_r = Variable(torch.FloatTensor(np.random.rand(batch_size, memory_feature_size)))
+    lstm_h, lstm_c = ntm.controller.create_state(batch_size)
     for i in range(batch.size()[2]):
         x = batch[:, :, i]
-        output, next_r = ntm.forward(x=x, r=next_r)
+        output, next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
         print(output)
         print(next_r)
 

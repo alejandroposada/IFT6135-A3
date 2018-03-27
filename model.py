@@ -38,10 +38,11 @@ class LSTMController(Controller):
     """LSTM controller for the NTM.
     """
     def __init__(self, input_dim, output_dim, num_layers):
-        super().__init__(nn.LSTM(input_size=input_dim,
-                                 hidden_size=output_dim,
-                                 num_layers=num_layers),
-                         input_dim, output_dim)
+        super(LSTMController, self).__init__(input_dim, output_dim, num_layers)
+
+        self.lstm = nn.LSTM(input_size=input_dim,
+                            hidden_size=output_dim,
+                            num_layers=num_layers)
 
         # From https://github.com/fanxiao001/ift6135-assignment/blob/master/assignment3/NTM/controller.py
         self.lstm_h_bias = Parameter(torch.randn(self.num_layers, 1, self.output_dim) * 0.05)
@@ -49,11 +50,18 @@ class LSTMController(Controller):
 
         self.reset_parameters()
 
-    def forward(self, x, r, state):
-        r = r.unsqueeze(0).repeat(x.size()[0], 1)
+    def forward(self, x, r, lstm_h, lstm_c):
+        """forward pass of the LSTM controller
+        """
+
+        #  Concatenate previous read state with input
+        #r = r.unsqueeze(0).repeat(x.size()[0], 1)
         x = torch.cat((r, x), 1)
-        output, state = self(x, state)
-        return output.squeeze(0), state
+
+        # feed into controller with previous state
+        output, state = self.lstm(x.unsqueeze(0), (lstm_h, lstm_c))
+
+        return output, state
 
     def create_state(self, batch_size):
         # Dimension: (num_layers * num_directions, batch, hidden_size)
@@ -94,6 +102,7 @@ class NTMReadHead(nn.Module):
         output 'r' is a vector (batch_size x M)
         """
         return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
+
 
 class NTMWriteHead(nn.Module):
     def __init__(self):
@@ -184,7 +193,7 @@ class NTM(nn.Module):
     """
     Neural Turing Machine
     """
-    def __init__(self, num_inputs, num_outputs, controller_size,
+    def __init__(self, num_inputs, num_outputs, controller_size, controller_type, controller_layers,
                  memory_size, memory_feature_size, integer_shift):
       
         """Initialize the NTM.
@@ -210,7 +219,7 @@ class NTM(nn.Module):
 
         #  Initialize components
         if self.controller_type == 'LSTM':
-            self.controller = LSTMController(input_dim=self.num_inputs,
+            self.controller = LSTMController(input_dim=self.num_inputs+self.memory_feature_size,
                                              output_dim=self.controller_size,
                                              num_layers=controller_layers)
         elif self.controller_type == 'MLP':
@@ -262,18 +271,20 @@ class NTM(nn.Module):
         o = self.fc_params(output)
         l = np.cumsum([0] + self.params_lengths)
         for idx in range(len(l)-1):
-            to_return[self.params[idx]] = self.activations[self.params[idx]](o[l[idx]:l[idx+1]])
+            to_return[self.params[idx]] = self.activations[self.params[idx]](o.squeeze(0)[:, l[idx]:l[idx+1]])
 
         return to_return
 
-    def forward(self, x, r, state=None):
+    def forward(self, x, r, lstm_h=None, lstm_c=None):
         """Perform forward pass from the NTM.
         :param x: current input.
         :param r: previous read head output.
-        :param state: previous state of the LSTM (None if using MLP)
+        :param lstm_h: LSTM previous hidden state for controller (None if using MLP)
+        :param lstm_c: LSTM previous memory state for controller (None if using MLP)
         """
         if self.controller_type == 'LSTM':
-            o, next_state = self.controller.forward(x, r, state)
+            o, state = self.controller.forward(x, r, lstm_h, lstm_c)
+            lstm_h, lstm_c = state
         else:
             o = self.controller.forward(x, r)
 
@@ -284,5 +295,8 @@ class NTM(nn.Module):
 
         # Generate Output
         output = F.sigmoid(self.fc(o))
+
+        if self.controller_type == 'LSTM':
+            return output, next_r, lstm_h, lstm_c
 
         return output, next_r
