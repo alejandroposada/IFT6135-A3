@@ -139,8 +139,9 @@ class NTMWriteHead(nn.Module):
 
 
 class NTMAttention(nn.Module):
-    def __init__(self):
+    def __init__(self, use_cuda):
         super(NTMAttention, self).__init__()
+        self.use_cuda = use_cuda
 
     def measure_similarity(self, k, beta, memory):
         k = k.unsqueeze(1) # puts it in batch_size x 1 x M
@@ -152,6 +153,8 @@ class NTMAttention(nn.Module):
 
     def shift(self, w_g, s, int_shift):
         result = Variable(torch.zeros(w_g.size()))
+        if self.use_cuda:
+            result = result.cuda()
         for b in range(self.batch_size):
             result[b] = self.shift_convolve(w_g[b], s[b], int_shift)
         return result
@@ -237,7 +240,7 @@ class NTM(nn.Module):
                                             output_dim=self.controller_size, num_layers=controller_layers,
                                             batch_size=self.batch_size, use_cuda=self.use_cuda)
 
-        self.attention = NTMAttention()
+        self.attention = NTMAttention(use_cuda=self.use_cuda)
         self.read_head = NTMReadHead(use_cuda=self.use_cuda)
         self.write_head = NTMWriteHead()
 
