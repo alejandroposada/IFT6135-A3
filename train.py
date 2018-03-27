@@ -73,7 +73,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         binary_output = output.clone().data
         binary_output = binary_output > 0.5
         #binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
-        cost = torch.sum(torch.abs(binary_output - batch.data))
+        cost = torch.sum(torch.abs(binary_output.float() - batch.data))
 
         losses += [loss.data[0]]
         costs += [cost/batch_size]
@@ -85,7 +85,9 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
             save_checkpoint(ntm, total_examples/batch_size, losses, costs, seq_lens)
 
             # Evaluate model on this saved checkpoint
-            test_cost, prediction, input = evaluate(ntm, testing_dataset, batch_size, memory_feature_size)
+            test_cost, prediction, input = evaluate(model=ntm, testset=testing_dataset, batch_size=batch_size,
+                                                    memory_feature_size=memory_feature_size,
+                                                    controller_type=controller_type, cuda=cuda)
             print("Total Test Cost (in bits per sequence):", test_cost)
             print("Example of Input/Output")
             print("prediction:", prediction[0])
