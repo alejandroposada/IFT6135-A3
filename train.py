@@ -16,7 +16,7 @@ memory_feature_size = 15
 
 #  for testing purposes only!
 ntm = NTM(num_inputs=9, num_outputs=9, controller_size=100, controller_type='LSTM', controller_layers=1,
-          memory_size=20, memory_feature_size=memory_feature_size, integer_shift=3)
+          memory_size=20, memory_feature_size=memory_feature_size, integer_shift=3, batch_size=batch_size)
 
 training_dataset = random_binary(max_seq_length=20, num_sequences=10, vector_dim=8, batch_Size=batch_size)
 
