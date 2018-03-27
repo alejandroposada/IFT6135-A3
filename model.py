@@ -36,12 +36,14 @@ class Controller(nn.Module):
 class LSTMController(Controller):
     """LSTM controller for the NTM.
     """
-    def __init__(self, input_dim, output_dim, num_layers, batch_size):
+    def __init__(self, input_dim, output_dim, num_layers, batch_size, use_cuda):
         super(LSTMController, self).__init__(input_dim, output_dim, num_layers, batch_size)
 
         self.lstm = nn.LSTM(input_size=input_dim,
                             hidden_size=output_dim,
                             num_layers=num_layers)
+        if use_cuda:
+            self.lstm.cuda()
 
         # From https://github.com/fanxiao001/ift6135-assignment/blob/master/assignment3/NTM/controller.py
         self.lstm_h_bias = Parameter(torch.randn(self.num_layers, 1, self.output_dim) * 0.05)
@@ -54,7 +56,6 @@ class LSTMController(Controller):
         """
 
         #  Concatenate previous read state with input
-        #r = r.unsqueeze(0).repeat(x.size()[0], 1)
         x = torch.cat((r, x.squeeze(0)), 1)
 
         # feed into controller with previous state
@@ -73,28 +74,26 @@ class LSTMController(Controller):
 class MLPController(Controller):
     """MLP controller for the NTM.
     """
-    def __init__(self, input_dim, output_dim, num_layers, batch_size):
+    def __init__(self, input_dim, output_dim, num_layers, batch_size, use_cuda):
         super().__init__(input_dim, output_dim, num_layers, batch_size)
 
         self.mlp = nn.Linear(input_dim, output_dim)
+        if use_cuda:
+            self.mlp.cuda()
 
-    def forward(self, x, r, state=None):
-        x = x.unsqueeze(0)
-        x = torch.cat([x] + r, dim=1)
-        output = self.mlp(x)
+    def forward(self, x, r):
+        x = torch.cat((r, x.squeeze(0)), 1)
+        output = self.mlp(x.unsqueeze(0))
         return output.squeeze(0)
-
-    def create_state(self):
-        return torch.zeros(1, self.batch_size, 1)
       
 
 class NTMReadHead(nn.Module):
-    def __init__(self):
+    def __init__(self, use_cuda):
         super(NTMReadHead, self).__init__()
+        self.use_cuda = use_cuda
 
     def forward(self, w, memory):
         """
-
         1) Expects memory to be a (batch_size x N x M) matrix, with N being
         the number of locations and M being the dimension of each stored feature.
         2) Expects weight, w, to be a (batch_size x N) vector representing the weighting on each
@@ -103,6 +102,12 @@ class NTMReadHead(nn.Module):
         output 'r' is a vector (batch_size x M)
         """
         return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
+
+    def create_state(self, batch_size, memory_feature_size):
+        random_init = Variable(torch.FloatTensor(np.random.rand(batch_size, memory_feature_size) * 0.05))
+        if self.use_cuda:
+            return random_init.cuda()
+        return random_init
 
 
 class NTMWriteHead(nn.Module):
@@ -138,8 +143,7 @@ class NTMAttention(nn.Module):
         super(NTMAttention, self).__init__()
 
     def measure_similarity(self, k, beta, memory):
-        #k = k.view(self.batch_size, 1, -1)  # puts it in batch_size x 1 x M
-        k = k.unsqueeze(1)
+        k = k.unsqueeze(1) # puts it in batch_size x 1 x M
         w = F.softmax(beta * F.cosine_similarity(memory + 1e-12, k + 1e-12, dim=-1))
         return w
 
@@ -197,8 +201,7 @@ class NTM(nn.Module):
     """
     def __init__(self, num_inputs, num_outputs, batch_size,
                  controller_size, controller_type, controller_layers,
-                 memory_size, memory_feature_size, integer_shift):
-      
+                 memory_size, memory_feature_size, integer_shift, use_cuda):
         """Initialize the NTM.
         :param num_inputs: External input size.
         :param num_outputs: External output size.
@@ -209,6 +212,7 @@ class NTM(nn.Module):
         :param memory_size: N in the paper
         :param memory_feature_size: M in the paper
         :param integer_shift: allowed integer shift (see pg 8 of paper)
+        :param use_cuda: use cuda
         """
         super(NTM, self).__init__()
 
@@ -221,25 +225,31 @@ class NTM(nn.Module):
         self.memory_size = memory_size
         self.memory_feature_size = memory_feature_size
         self.integer_shift = integer_shift
+        self.use_cuda = use_cuda
 
         #  Initialize components
         if self.controller_type == 'LSTM':
             self.controller = LSTMController(input_dim=self.num_inputs+self.memory_feature_size,
                                              output_dim=self.controller_size, num_layers=controller_layers,
-                                             batch_size=self.batch_size)
+                                             batch_size=self.batch_size, use_cuda=self.use_cuda)
         elif self.controller_type == 'MLP':
-            self.controller = MLPController(input_dim=self.num_inputs, output_dim=self.controller_size,
-                                            num_layers=controller_layers, batch_size=self.batch_size)
+            self.controller = MLPController(input_dim=self.num_inputs+self.memory_feature_size,
+                                            output_dim=self.controller_size, num_layers=controller_layers,
+                                            batch_size=self.batch_size, use_cuda=self.use_cuda)
 
         self.attention = NTMAttention()
-        self.read_head = NTMReadHead()
+        self.read_head = NTMReadHead(use_cuda=self.use_cuda)
         self.write_head = NTMWriteHead()
 
         #  Initialize memory
         self.memory = Variable(torch.zeros(self.batch_size, self.memory_size, self.memory_feature_size))
+        if self.use_cuda:
+            self.memory = self.memory.cuda()
 
-        #  Initialize weight
+        #  Initialize weights
         self.weight = Variable(torch.zeros(self.batch_size, self.memory_size))
+        if self.use_cuda:
+            self.weight = self.weight.cuda()
 
         # Initialize a fully connected layer to produce the actual output:
         self.fc = nn.Linear(self.controller_size, self.num_outputs)
@@ -260,6 +270,9 @@ class NTM(nn.Module):
                             's': lambda x: F.softmax(F.softplus(x)),
                             'e': F.sigmoid,
                             'a': F.sigmoid}
+
+        if self.use_cuda:
+            self.cuda()
 
     def convert_to_params(self, output):
         """Transform output from controller into parameters for attention and write heads

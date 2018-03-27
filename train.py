@@ -13,21 +13,23 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
 
     # Seeding
     SEED = 1000
-    np.random.seed(SEED)
     torch.manual_seed(SEED)
+    np.random.seed(SEED)
 
     # Model Loading
     if model_file == 'None':
         ntm = NTM(num_inputs=num_inputs, num_outputs=num_outputs, controller_size=controller_size,
                   controller_type=controller_type, controller_layers=controller_layers,
                   memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
-                  batch_size=batch_size)
+                  batch_size=batch_size, use_cuda=cuda)
     else:
         pass
 
     # Dataset creation
-    training_dataset = random_binary(max_seq_length=20, num_sequences=20, vector_dim=8, batch_Size=batch_size)
-    testing_dataset = random_binary(max_seq_length=10, num_sequences=5, vector_dim=8, batch_Size=batch_size)
+    training_dataset = random_binary(max_seq_length=20, num_sequences=200, vector_dim=8,
+                                     batch_Size=batch_size)
+    testing_dataset = random_binary(max_seq_length=10, num_sequences=50, vector_dim=8,
+                                    batch_Size=batch_size)
 
     # Optimizer type and loss function
     optimizer = torch.optim.Adam(ntm.parameters(), lr=learning_rate)
@@ -38,16 +40,24 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
     losses = []
     costs = []
     seq_lens = []
+
+    np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
     for batch in training_dataset:
-        batch = Variable(torch.FloatTensor(batch))
-        next_r = Variable(torch.FloatTensor(np.random.rand(batch_size, memory_feature_size) * 0.05))
-        lstm_h, lstm_c = ntm.controller.create_state(batch_size)
+        batch = Variable(batch)
+        if cuda:
+            batch = batch.cuda()
+        next_r = ntm.read_head.create_state(batch_size, memory_feature_size)
+        if controller_type == 'LSTM':
+            lstm_h, lstm_c = ntm.controller.create_state(batch_size)
 
         optimizer.zero_grad()
         output = Variable(torch.zeros(batch.size()))
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
-            output[:, :, i], next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            if controller_type == 'LSTM':
+                output[:, :, i], next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            elif controller_type == 'MLP':
+                output[:, :, i], next_r = ntm.forward(x=x, r=next_r)
 
         loss = criterion(output, batch)
         loss.backward(retain_graph=True)
@@ -90,7 +100,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_outputs', type=int, default=9, help='number of outputs in NTM')
     parser.add_argument('--controller_size', type=int, default=100, help='size of controller output of NTM')
     parser.add_argument('--controller_type', type=str, default="LSTM", help='type of controller of NTM')
-    parser.add_argument('--cuda', action='store_true', default=True,
+    parser.add_argument('--cuda', action='store_true', default=False,
                         help='enables CUDA training')
     parser.add_argument('--controller_layers', type=int, default=1, help='number of layers of controller of NTM')
     parser.add_argument('--integer_shift', type=int, default=3, help='integer shift in location attention of NTM')
