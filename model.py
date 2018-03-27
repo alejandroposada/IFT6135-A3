@@ -111,8 +111,9 @@ class NTMReadHead(nn.Module):
 
 
 class NTMWriteHead(nn.Module):
-    def __init__(self):
+    def __init__(self, use_cuda):
         super(NTMWriteHead, self).__init__()
+        self.use_cuda = use_cuda
 
     def forward(self, w, memory, params):
         """
@@ -131,6 +132,8 @@ class NTMWriteHead(nn.Module):
         mem_size = prev_memory.size()
         # I believe we need to Variable 'memory'. Not sure...
         memory = Variable(torch.Tensor(mem_size[0], mem_size[1], mem_size[2]))
+        if self.use_cuda:
+            memory = memory.cuda()
         for example in range(len(memory)):  # since first dim is batch_size
             memory[example] = prev_memory[example] * (1 - torch.ger(w[example], e[example]))  # Erase
             memory[example] = memory[example] + torch.ger(w[example], a[example])  # Add
@@ -242,7 +245,7 @@ class NTM(nn.Module):
 
         self.attention = NTMAttention(use_cuda=self.use_cuda)
         self.read_head = NTMReadHead(use_cuda=self.use_cuda)
-        self.write_head = NTMWriteHead()
+        self.write_head = NTMWriteHead(use_cuda=self.use_cuda)
 
         #  Initialize memory
         self.memory = Variable(torch.zeros(self.batch_size, self.memory_size, self.memory_feature_size))

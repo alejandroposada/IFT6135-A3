@@ -52,6 +52,8 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
 
         optimizer.zero_grad()
         output = Variable(torch.zeros(batch.size()))
+        if cuda:
+            output = output.cuda()
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
             if controller_type == 'LSTM':
@@ -67,8 +69,10 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         total_examples += batch_size
 
         # The cost is the number of error bits per sequence
+
         binary_output = output.clone().data
-        binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
+        binary_output = binary_output > 0.5
+        #binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
         cost = torch.sum(torch.abs(binary_output - batch.data))
 
         losses += [loss.data[0]]
