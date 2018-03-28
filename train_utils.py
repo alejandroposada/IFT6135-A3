@@ -35,6 +35,7 @@ def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples
             'seq_lengths': seq_lengths,
             'total_examples': total_examples,
             'num_inputs': num_inputs,
+            'num_hidden': num_hidden,
             'num_outputs': num_outputs,
             'batch_size': batch_size,
             'cuda': cuda
