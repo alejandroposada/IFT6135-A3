@@ -54,25 +54,6 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
                     elif controller_type == 'MLP':
                         output[:, :, i], next_r = model.forward(x=x, r=next_r)
                 break
-            X = batch.squeeze(0).data.numpy()
-            Y = output.squeeze(0).data.numpy()
-
-            # Putting the matrices together for nice display, with empty_rows between the two plots
-            fig, ax = plt.subplots(2, 1, sharex=True, figsize=(15, 3))
-            fig.subplots_adjust(wspace=0)
-
-            empty_rows = 2
-            data = np.ones((X.shape[1] + Y.shape[1] + empty_rows, X.shape[2])) * 0.5
-            x = X[0]
-            y = Y[0]
-
-            ax[0].imshow(x, cmap='binary', interpolation='nearest', aspect='auto')
-            im = ax[1].imshow(y, cmap='binary', interpolation='nearest', aspect='auto')
-            ax[0].set_title('Output', x=-0.1, y=0.5)
-            ax[1].set_title('Target', x=-0.1, y=0.5)
-            fig.colorbar(im, ax=ax.ravel().tolist())
-
-            plt.show()
 
     elif model_type == "LSTM":
         if not cuda:  # load to CPU
@@ -106,19 +87,21 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
         Y = output.squeeze(0).data.numpy()
 
         # Putting the matrices together for nice display, with empty_rows between the two plots
-        fig, ax = plt.subplots(2, 1, sharex=True, figsize=(15, 3))
-        fig.subplots_adjust(wspace=0)
+        fig, ax = plt.subplots(2, 1, sharex=True, figsize=(seq_len/6, 4))
 
         empty_rows = 2
         data = np.ones((X.shape[1] + Y.shape[1] + empty_rows, X.shape[2])) * 0.5
         x = X[0]
         y = Y[0]
 
-        ax[0].imshow(x, cmap='binary', interpolation='nearest')
-        im = ax[1].imshow(y, cmap='binary', interpolation='nearest')
-        ax[0].set_title('Output', x=-0.1, y=0.5)
-        ax[1].set_title('Target', x=-0.1, y=0.5)
-        fig.colorbar(im, ax=ax.ravel().tolist())
+        ax[0].imshow(x, cmap='binary', interpolation='nearest', aspect='auto')
+        ax[0].set_ylabel('Target', rotation=0, labelpad=30, fontsize=13)
+        im = ax[1].imshow(y, cmap='binary', interpolation='nearest', aspect='auto')
+        ax[1].set_ylabel('Output', rotation=0, labelpad=30, fontsize=13)
 
+        fig.colorbar(im, ax=ax.ravel().tolist())
+        for ax_ in ax:
+            ax_.set_xticks([])
+            ax_.set_yticks([])
         plt.show()
 
