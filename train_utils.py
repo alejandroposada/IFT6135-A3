@@ -5,20 +5,32 @@ import numpy as np
 
 # Code snippet taken from:
 # https://github.com/loudinthecloud/pytorch-ntm/blob/db56fb86f9f68abb799ff9120f9beda64837bece/train.py#L67
-def save_checkpoint(model, batch_num, losses, costs, seq_lengths):
+def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples, controller_type,
+                    num_inputs, num_outputs,controller_size, controller_layers, memory_size,
+                    memory_feature_size, integer_shift, batch_size, cuda):
     basename = "checkpoints/copy-batch-{}".format(batch_num)
 
     model_fname = basename + ".model"
-    torch.save(model.state_dict(), model_fname)
 
-    # Save the training history
-    train_fname = basename + ".json"
-    content = {
-        "loss": losses,
-        "cost": costs,
-        "seq_lengths": seq_lengths
+    state = {
+        'state_dict': model.state_dict(),
+        'loss': losses,
+        'cost': costs,
+        'seq_lengths': seq_lengths,
+        'total_examples': total_examples,
+        'controller_type': controller_type,
+        'num_inputs': num_inputs,
+        'num_outputs': num_outputs,
+        'controller_size': controller_size,
+        'controller_layers': controller_layers,
+        'memory_size': memory_size,
+        'memory_feature_size': memory_feature_size,
+        'integer_shift': integer_shift,
+        'batch_size': batch_size,
+        'cuda': cuda
     }
-    open(train_fname, 'wt').write(json.dumps(content))
+    torch.save(state, model_fname)
+
 
 
 def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_size):

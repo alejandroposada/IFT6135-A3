@@ -5,7 +5,7 @@ import torch
 from training_dataset import random_binary
 from train_utils import save_checkpoint, evaluate
 import argparse
-
+import json
 
 def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_outputs,
         controller_size, controller_type, controller_layers, memory_size, integer_shift,
@@ -22,8 +22,36 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
                   controller_type=controller_type, controller_layers=controller_layers,
                   memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
                   batch_size=batch_size, use_cuda=cuda)
+        # Constants for keeping track
+        total_examples = 0
+        losses = []
+        costs = []
+        seq_lens = []
+
     else:
-        pass
+        from_before = torch.load(model_file)
+        state_dict = from_before['state_dict']
+        controller_type = from_before['controller_type']
+        num_inputs = from_before['num_inputs']
+        num_outputs = from_before['num_outputs']
+        controller_size = from_before['controller_size']
+        controller_layers = from_before['controller_layers']
+        memory_size = from_before['memory_size']
+        memory_feature_size = from_before['memory_feature_size']
+        integer_shift = from_before['integer_shift']
+        batch_size = from_before['batch_size']
+        cuda = from_before['cuda']
+        ntm = NTM(num_inputs=num_inputs, num_outputs=num_outputs, controller_size=controller_size,
+                  controller_type=controller_type, controller_layers=controller_layers,
+                  memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
+                  batch_size=batch_size, use_cuda=cuda)
+        ntm.load_state_dict(state_dict)
+        losses = from_before['loss']
+        costs = from_before['cost']
+        seq_lens = from_before['seq_lengths']
+        total_examples = from_before['total_examples']
+
+
 
     # Dataset creation
     training_dataset = random_binary(max_seq_length=20, num_sequences=200, vector_dim=8,
@@ -35,11 +63,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
     optimizer = torch.optim.Adam(ntm.parameters(), lr=learning_rate)
     criterion = torch.nn.BCELoss()
 
-    # Constants for keeping track
-    total_examples = 0
-    losses = []
-    costs = []
-    seq_lens = []
+
 
     np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
     for batch in training_dataset:
@@ -82,7 +106,9 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         # Checkpoint model
         if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
             print("Saving Checkpoint!")
-            save_checkpoint(ntm, total_examples/batch_size, losses, costs, seq_lens)
+            save_checkpoint(ntm, total_examples/batch_size, losses, costs, seq_lens, total_examples, controller_type,
+                            num_inputs, num_outputs, controller_size, controller_layers, memory_size,
+                            memory_feature_size, integer_shift, batch_size, cuda)
 
             # Evaluate model on this saved checkpoint
             test_cost, prediction, input = evaluate(model=ntm, testset=testing_dataset, batch_size=batch_size,
@@ -116,7 +142,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     args.cuda = args.cuda and torch.cuda.is_available()
-
+    #  --model_file checkpoints/copy-batch-16.0.model
     run(learning_rate=args.learn_rate, batch_size=args.batch_size, cuda=args.cuda, memory_feature_size=args.M,
         num_inputs=args.num_inputs, num_outputs=args.num_outputs, controller_size=args.controller_size,
         controller_type=args.controller_type, controller_layers=args.controller_layers, memory_size=args.N,
