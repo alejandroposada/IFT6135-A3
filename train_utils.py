@@ -4,28 +4,41 @@ from torch.autograd import Variable
 
 def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples, controller_type,
                     num_inputs, num_outputs, controller_size, controller_layers, memory_size,
-                    memory_feature_size, integer_shift, batch_size, cuda):
-    basename = "checkpoints/copy-batch-{}--{}".format(batch_num, controller_type)
-
-    model_fname = basename + ".model"
-
-    state = {
-        'state_dict': model.state_dict(),
-        'loss': losses,
-        'cost': costs,
-        'seq_lengths': seq_lengths,
-        'total_examples': total_examples,
-        'controller_type': controller_type,
-        'num_inputs': num_inputs,
-        'num_outputs': num_outputs,
-        'controller_size': controller_size,
-        'controller_layers': controller_layers,
-        'memory_size': memory_size,
-        'memory_feature_size': memory_feature_size,
-        'integer_shift': integer_shift,
-        'batch_size': batch_size,
-        'cuda': cuda
-    }
+                    memory_feature_size, integer_shift, batch_size, cuda, model_type='NTM'):
+    if model_type == 'NTM':
+        basename = "checkpoints/ntm/copy-batch-{}--{}".format(batch_num, controller_type)
+        model_fname = basename + ".model"
+        state = {
+            'state_dict': model.state_dict(),
+            'loss': losses,
+            'cost': costs,
+            'seq_lengths': seq_lengths,
+            'total_examples': total_examples,
+            'controller_type': controller_type,
+            'num_inputs': num_inputs,
+            'num_outputs': num_outputs,
+            'controller_size': controller_size,
+            'controller_layers': controller_layers,
+            'memory_size': memory_size,
+            'memory_feature_size': memory_feature_size,
+            'integer_shift': integer_shift,
+            'batch_size': batch_size,
+            'cuda': cuda
+        }
+    elif model_type == 'LSTM':
+        basename = "checkpoints/lstm/copy-batch-{}--{}".format(batch_num)
+        model_fname = basename + ".model"
+        state = {
+            'state_dict': model.state_dict(),
+            'loss': losses,
+            'cost': costs,
+            'seq_lengths': seq_lengths,
+            'total_examples': total_examples,
+            'num_inputs': num_inputs,
+            'num_outputs': num_outputs,
+            'batch_size': batch_size,
+            'cuda': cuda
+        }
     torch.save(state, model_fname)
 
 
