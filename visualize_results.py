@@ -114,8 +114,8 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
         x = X[0]
         y = Y[0]
 
-        ax[0].imshow(x, cmap='binary', interpolation='nearest', aspect='auto')
-        im = ax[1].imshow(y, cmap='binary', interpolation='nearest', aspect='auto')
+        ax[0].imshow(x, cmap='binary', interpolation='nearest')
+        im = ax[1].imshow(y, cmap='binary', interpolation='nearest')
         ax[0].set_title('Output', x=-0.1, y=0.5)
         ax[1].set_title('Target', x=-0.1, y=0.5)
         fig.colorbar(im, ax=ax.ravel().tolist())
