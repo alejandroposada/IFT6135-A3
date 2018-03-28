@@ -75,8 +75,20 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         output = Variable(torch.zeros(batch.size()))
         if cuda:
             output = output.cuda()
+        #  Read batch in
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
+            if controller_type == 'LSTM':
+                _, next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            elif controller_type == 'MLP':
+                _, next_r = ntm.forward(x=x, r=next_r)
+        # Output response
+
+        x = Variable(torch.zeros(batch.size()[0:2]))
+        if cuda:
+            x = x.cuda()
+
+        for i in range(batch.size()[2]):
             if controller_type == 'LSTM':
                 output[:, :, i], next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':

@@ -26,7 +26,7 @@ def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples
             'cuda': cuda
         }
     elif model_type == 'LSTM':
-        basename = "checkpoints/lstm/copy-batch-{}--{}".format(batch_num)
+        basename = "checkpoints/lstm/copy-batch-{}--{}".format(batch_num, controller_type)
         model_fname = basename + ".model"
         state = {
             'state_dict': model.state_dict(),
