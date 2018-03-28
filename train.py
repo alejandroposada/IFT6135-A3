@@ -4,7 +4,7 @@ import numpy as np
 from torch.autograd import Variable
 import torch
 from training_dataset import random_binary
-from train_utils import save_checkpoint, evaluate
+from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline
 import argparse
 
 
@@ -101,7 +101,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         # Checkpoint model
         if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
             print("Saving Checkpoint!")
-            save_checkpoint(ntm, total_examples/batch_size, losses, costs, seq_lens, total_examples, controller_type,
+            save_checkoint(ntm, total_examples/batch_size, losses, costs, seq_lens, total_examples, controller_type,
                             num_inputs, num_outputs, controller_size, controller_layers, memory_size,
                             memory_feature_size, integer_shift, batch_size, cuda)
 
@@ -143,11 +143,6 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
         state_dict = from_before['state_dict']
         num_inputs = from_before['num_inputs']
         num_outputs = from_before['num_outputs']
-        controller_size = from_before['controller_size']
-        controller_layers = from_before['controller_layers']
-        memory_size = from_before['memory_size']
-        memory_feature_size = from_before['memory_feature_size']
-        integer_shift = from_before['integer_shift']
         batch_size = from_before['batch_size']
         cuda = from_before['cuda']
         lstm = LSTM(num_inputs, num_hidden)
@@ -192,21 +187,23 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
         costs += [cost / batch_size]
         seq_lens += [batch.size(2)]
 
-      #  # Checkpoint model
-      #  if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
-      #      print("Saving Checkpoint!")
-      #      save_checkpoint(lstm, total_examples / batch_size, losses, costs, seq_lens, total_examples,
-      #                      num_inputs, num_outputs, num_hidden, batch_size, cuda)
-#
-      #      # Evaluate model on this saved checkpoint
-      #      test_cost, prediction, input = evaluate(model=lstm, testset=testing_dataset, batch_size=batch_size,
-      #                                              memory_feature_size=memory_feature_size,
-      #                                              controller_type=controller_type, cuda=cuda)
-      #      print("Total Test Cost (in bits per sequence):", test_cost)
-      #      print("Example of Input/Output")
-      #      print("prediction:", prediction[0])
-      #      print("Input:", input[0])
+        # Checkpoint model
+        if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
+            print("Saving checkpoint!")
+            save_checkpoint(lstm, total_examples / batch_size,
+                            losses, costs, seq_lens,
+                            total_examples, None, num_inputs,
+                            num_outputs, None, None,
+                            None, None, None,
+                            batch_size, cuda, num_hidden, 'LSTM')
 
+            # Evaluate model on this saved checkpoint
+            test_cost, prediction, input = evaluate_lstm_baseline(model=lstm, testset=testing_dataset,
+                                                                  batch_size=batch_size, cuda=cuda)
+            print("Total Test Cost (in bits per sequence):", test_cost)
+            print("Example of Input/Output")
+            print("prediction:", prediction[0])
+            print("Input:", input[0])
         if total_examples / checkpoint_interval >= total_batches:
             break
 
