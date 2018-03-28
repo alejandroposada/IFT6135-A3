@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+import torch.autograd as autograd
+from torch.nn import functional as F
 
 
 class LSTM(nn.Module):
