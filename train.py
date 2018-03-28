@@ -101,7 +101,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         # Checkpoint model
         if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
             print("Saving Checkpoint!")
-            save_checkoint(ntm, total_examples/batch_size, losses, costs, seq_lens, total_examples, controller_type,
+            save_checkpoint(ntm, total_examples/batch_size, losses, costs, seq_lens, total_examples, controller_type,
                             num_inputs, num_outputs, controller_size, controller_layers, memory_size,
                             memory_feature_size, integer_shift, batch_size, cuda)
 
