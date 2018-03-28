@@ -51,8 +51,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         seq_lens = from_before['seq_lengths']
         total_examples = from_before['total_examples']
 
-
-
     # Dataset creation
     training_dataset = random_binary(max_seq_length=20, num_sequences=200, vector_dim=8,
                                      batch_Size=batch_size)
@@ -62,8 +60,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
     # Optimizer type and loss function
     optimizer = torch.optim.Adam(ntm.parameters(), lr=learning_rate)
     criterion = torch.nn.BCELoss()
-
-
 
     np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
     for batch in training_dataset:
@@ -93,7 +89,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         total_examples += batch_size
 
         # The cost is the number of error bits per sequence
-
         binary_output = output.clone().data
         binary_output = binary_output > 0.5
         #binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
@@ -121,6 +116,102 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
 
         if total_examples / checkpoint_interval >= total_batches:
             break
+
+
+def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
+             num_hidden, checkpoint_interval, total_batches, model_file):
+    """
+    Train LSTM baseline.
+    """
+    # Seeding
+    SEED = 1000
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
+
+    # Model Loading
+    if model_file is None:
+        lstm = LSTM(num_inputs, num_hidden)
+        if cuda:
+            lstm.cuda()
+        # Constants for keeping track
+        total_examples = 0
+        losses = []
+        costs = []
+        seq_lens = []
+    else:
+        from_before = torch.load(model_file)
+        state_dict = from_before['state_dict']
+        num_inputs = from_before['num_inputs']
+        num_outputs = from_before['num_outputs']
+        controller_size = from_before['controller_size']
+        controller_layers = from_before['controller_layers']
+        memory_size = from_before['memory_size']
+        memory_feature_size = from_before['memory_feature_size']
+        integer_shift = from_before['integer_shift']
+        batch_size = from_before['batch_size']
+        cuda = from_before['cuda']
+        lstm = LSTM(num_inputs, num_hidden)
+
+    # Dataset creation
+    training_dataset = random_binary(max_seq_length=20, num_sequences=200, vector_dim=8,
+                                     batch_Size=batch_size)
+    testing_dataset = random_binary(max_seq_length=10, num_sequences=50, vector_dim=8,
+                                    batch_Size=batch_size)
+
+    # Optimizer type and loss function
+    optimizer = torch.optim.Adam(lstm.parameters(), lr=learning_rate)
+    criterion = torch.nn.BCELoss()
+
+    np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
+    for batch in training_dataset:
+        lstm.init_hidden(batch_size)
+        batch = Variable(batch)
+        if cuda:
+            batch = batch.cuda()
+        optimizer.zero_grad()
+        output = Variable(torch.zeros(batch.size()))
+        if cuda:
+            output = output.cuda()
+        for i in range(batch.size()[2]):
+            x = batch[:, :, i]
+            output[:, :, i] = lstm.forward(x)
+
+        loss = criterion(output, batch)
+        loss.backward(retain_graph=True)
+        optimizer.step()
+
+        print("Current Batch Loss:", round(loss.data[0], 3))
+        total_examples += batch_size
+
+        # The cost is the number of error bits per sequence
+        binary_output = output.clone().data
+        binary_output = binary_output > 0.5
+        cost = torch.sum(torch.abs(binary_output.float() - batch.data))
+
+        losses += [loss.data[0]]
+        costs += [cost / batch_size]
+        seq_lens += [batch.size(2)]
+
+      #  # Checkpoint model
+      #  if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
+      #      print("Saving Checkpoint!")
+      #      save_checkpoint(lstm, total_examples / batch_size, losses, costs, seq_lens, total_examples,
+      #                      num_inputs, num_outputs, num_hidden, batch_size, cuda)
+#
+      #      # Evaluate model on this saved checkpoint
+      #      test_cost, prediction, input = evaluate(model=lstm, testset=testing_dataset, batch_size=batch_size,
+      #                                              memory_feature_size=memory_feature_size,
+      #                                              controller_type=controller_type, cuda=cuda)
+      #      print("Total Test Cost (in bits per sequence):", test_cost)
+      #      print("Example of Input/Output")
+      #      print("prediction:", prediction[0])
+      #      print("Input:", input[0])
+
+        if total_examples / checkpoint_interval >= total_batches:
+            break
+
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
