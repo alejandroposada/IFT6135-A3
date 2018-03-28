@@ -1,4 +1,5 @@
 from model import NTM
+from lstm_baseline import LSTM
 import numpy as np
 from torch.autograd import Variable
 import torch
@@ -129,7 +130,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
     np.random.seed(SEED)
 
     # Model Loading
-    if model_file is None:
+    if model_file == 'None':
         lstm = LSTM(num_inputs, num_hidden)
         if cuda:
             lstm.cuda()
@@ -244,7 +245,7 @@ if __name__ == '__main__':
             controller_type=args.controller_type, controller_layers=args.controller_layers, memory_size=args.N,
             integer_shift=args.integer_shift, checkpoint_interval=args.checkpoint_interval,
             total_batches=args.total_batches, model_file=args.model_file)
-        
+
     # Train LSTM (baseline)
     elif args.model == 'LSTM':
         run_lstm(learning_rate=args.learn_rate,
