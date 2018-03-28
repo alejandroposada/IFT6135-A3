@@ -64,3 +64,32 @@ def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_s
             break
 
     return cost/(count-1), binary_output, batch
+
+
+def evaluate_lstm_baseline(lstm, testset, batch_size, cuda):
+    count = 0
+    total_cost = 0
+    for batch in testset:
+        batch = Variable(batch)
+
+        if cuda:
+            batch = batch.cuda()
+        output = Variable(torch.zeros(batch.size()))
+        if cuda:
+            output = output.cuda()
+
+        for i in range(batch.size()[2]):
+            x = batch[:, :, i]
+            output[:, :, i] = lstm.forward(x)
+
+        # The cost is the number of error bits per sequence
+        binary_output = output.clone().data
+        binary_output = binary_output > 0.5
+        # binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
+        cost = torch.sum(torch.abs(binary_output.float() - batch.data))
+        total_cost += cost / batch_size
+
+        count += 1
+        if count >= 4:
+            break
+    return cost / (count - 1), binary_output, batch
