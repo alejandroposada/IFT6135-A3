@@ -4,7 +4,7 @@ from torch.autograd import Variable
 
 def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples, controller_type,
                     num_inputs, num_outputs, controller_size, controller_layers, memory_size,
-                    memory_feature_size, integer_shift, batch_size, cuda, model_type='NTM'):
+                    memory_feature_size, integer_shift, batch_size, cuda, num_hidden=None, model_type='NTM'):
     if model_type == 'NTM':
         basename = "checkpoints/ntm/copy-batch-{}--{}".format(batch_num, controller_type)
         model_fname = basename + ".model"
@@ -26,7 +26,7 @@ def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples
             'cuda': cuda
         }
     elif model_type == 'LSTM':
-        basename = "checkpoints/lstm/copy-batch-{}--{}".format(batch_num)
+        basename = "checkpoints/lstm/copy-batch-{}".format(batch_num)
         model_fname = basename + ".model"
         state = {
             'state_dict': model.state_dict(),
@@ -79,7 +79,7 @@ def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_s
     return cost/(count-1), binary_output, batch
 
 
-def evaluate_lstm_baseline(lstm, testset, batch_size, cuda):
+def evaluate_lstm_baseline(model, testset, batch_size, cuda):
     count = 0
     total_cost = 0
     for batch in testset:
@@ -93,7 +93,7 @@ def evaluate_lstm_baseline(lstm, testset, batch_size, cuda):
 
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
-            output[:, :, i] = lstm.forward(x)
+            output[:, :, i] = model.forward(x)
 
         # The cost is the number of error bits per sequence
         binary_output = output.clone().data
