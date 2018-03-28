@@ -1,4 +1,3 @@
-from torch.autograd import Variable
 import torch
 import torch.nn as nn
 
@@ -9,17 +8,16 @@ class LSTM(nn.Module):
         self.num_hidden = num_hidden
         self.lstm = nn.LSTM(num_inputs, num_hidden)
         self.mlp = nn.Linear(num_hidden, num_inputs)
-        # self.hidden = self.init_hidden()
 
     def init_hidden(self, batch_size):
         num_hidden = self.num_hidden
-        self.hidden = (autograd.Variable(torch.randn(1, batch_size, self.num_hidden)),
+        self.hidden = (autograd.Variable(torch.randn((1, batch_size, self.num_hidden))),
                        autograd.Variable(torch.randn((1, batch_size, self.num_hidden))))
 
     def forward(self, x):
-        x, self.hidden = self.lstm(x, self.hidden)
+        x, self.hidden = self.lstm(x.unsqueeze(0), self.hidden)
         x = self.mlp(x)
-        return x
+        return F.sigmoid(x)
 
     def num_params(self):
         num_params = 0
