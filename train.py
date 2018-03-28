@@ -28,7 +28,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         losses = []
         costs = []
         seq_lens = []
-
     else:
         from_before = torch.load(model_file)
         state_dict = from_before['state_dict']
@@ -82,8 +81,8 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
                 _, next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':
                 _, next_r = ntm.forward(x=x, r=next_r)
-        # Output response
 
+        # Output response
         x = Variable(torch.zeros(batch.size()[0:2]))
         if cuda:
             x = x.cuda()
@@ -181,6 +180,13 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
             output = output.cuda()
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
+            output[:, :, i] = lstm.forward(x)
+
+        # Output response
+        x = Variable(torch.zeros(batch.size()[0:2]))
+        if cuda:
+            x = x.cuda()
+        for i in range(batch.size()[2]):
             output[:, :, i] = lstm.forward(x)
 
         loss = criterion(output, batch)
