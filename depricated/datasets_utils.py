@@ -51,26 +51,32 @@ def split_dataset(dataset, train=0.8, val=0.1, test=0.1, path='data'):
         pickle.dump(test_set, f)
 
 
-    def make_test_different_T(max_T=100, n_inputs=20):
-        """
-        For point 2.c
-        """
-        Path.mkdir(Path('data/2c'), exist_ok=True)
+def make_test_different_T(max_T=100, n_inputs=20):
+    """
+    For point 2.c
+    """
+    Path.mkdir(Path('data/2c'), exist_ok=True)
 
-        T_list = np.arange(10, max_T, 10)
+    T_list = np.arange(10, max_T, 10)
 
-        for T in T_list:
-            dataset = make_dataset(T, n_inputs)
+    for T in T_list:
+        dataset = make_dataset(T, n_inputs)
 
-            with open('data/train.pkl', 'wb') as f:
-                pickle.dump(train_set, f)
-                
+        with open('data/2c/T{}.pkl'.format(T), 'wb') as f:
+            pickle.dump(dataset, f)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--T', '--max_length', type=int, help='Maximum sequence length')
-    parser.add_argument('--n_seqs', type=int, help='Number of seqs. in the dataset')
+    parser.add_argument('--T', '--max_length', default=20, type=int, help='Maximum sequence length')
+    parser.add_argument('--n_seqs', type=int, default=30000, help='Number of seqs. in the dataset')
+    parser.add_argument('--twoC', action='store_true', help='Only build point sets for point 2c')
     args = parser.parse_args()
 
-    dataset = make_dataset(args.T, args.n_seqs)
-    split_dataset(dataset)
+    # Build general datase
+    if not args.twoC:
+        dataset = make_dataset(args.T, args.n_seqs)
+        split_dataset(dataset)
+    # Build test sets for point 2c)
+    else:
+        make_test_different_T()
