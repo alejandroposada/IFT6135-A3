@@ -215,6 +215,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('--model', type=str, default='NTM', help='"NTM" or "LSTM" (baseline)')
     parser.add_argument('--learn_rate', type=float, default=0.01, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
     parser.add_argument('--M', type=int, default=15, help='memory feature size')
@@ -230,12 +231,28 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_interval', type=int, default=512, help='intervals to checkpoint')
     parser.add_argument('--total_batches', type=int, default=40, help='total number of batches to iterate through')
     parser.add_argument('--model_file', type=str, default='None', help='model file to load')
+    parser.add_argument('--num_hidden', type=int, default=100, help='number of hidden units in the baseline LSTM')
     args = parser.parse_args()
 
     args.cuda = args.cuda and torch.cuda.is_available()
     #  --model_file checkpoints/copy-batch-16.0.model
-    run(learning_rate=args.learn_rate, batch_size=args.batch_size, cuda=args.cuda, memory_feature_size=args.M,
-        num_inputs=args.num_inputs, num_outputs=args.num_outputs, controller_size=args.controller_size,
-        controller_type=args.controller_type, controller_layers=args.controller_layers, memory_size=args.N,
-        integer_shift=args.integer_shift, checkpoint_interval=args.checkpoint_interval,
-        total_batches=args.total_batches, model_file=args.model_file)
+
+    # Train NTM
+    if args.model == 'NTM':
+        run(learning_rate=args.learn_rate, batch_size=args.batch_size, cuda=args.cuda, memory_feature_size=args.M,
+            num_inputs=args.num_inputs, num_outputs=args.num_outputs, controller_size=args.controller_size,
+            controller_type=args.controller_type, controller_layers=args.controller_layers, memory_size=args.N,
+            integer_shift=args.integer_shift, checkpoint_interval=args.checkpoint_interval,
+            total_batches=args.total_batches, model_file=args.model_file)
+        
+    # Train LSTM (baseline)
+    elif args.model == 'LSTM':
+        run_lstm(learning_rate=args.learn_rate,
+                 batch_size=args.batch_size,
+                 cuda=args.cuda,
+                 num_inputs=args.num_inputs,
+                 num_outputs=args.num_outputs,
+                 num_hidden=args.num_hidden,
+                 checkpoint_interval=args.checkpoint_interval,
+                 total_batches=args.total_batches,
+                 model_file=args.model_file)
