@@ -4,7 +4,7 @@ import torch
 
 class random_binary(Dataset):
 
-    def __init__(self, max_seq_length, num_sequences, vector_dim=8, batch_Size=32):
+    def __init__(self, max_seq_length, num_sequences, vector_dim=8, batch_Size=32, min_seq_length=1):
         '''
         :param max_seq_length: maximum sequence length allowed
         :param num_sequences: number of sequences
@@ -15,13 +15,14 @@ class random_binary(Dataset):
         self.num_sequences = num_sequences
         self.vector_dim = vector_dim
         self.batch_Size = batch_Size
+        self.min_seq_length = min_seq_length
 
     def __len__(self):
         return self.num_sequences
 
     def __getitem__(self, idx):
         vector_end = np.append(np.zeros(self.vector_dim), 1).reshape(self.vector_dim + 1, 1)  # x_{T+1}
-        seq_length = np.random.randint(1, self.max_seq_length)                 # T
+        seq_length = np.random.randint(self.min_seq_length, self.max_seq_length)                 # T
         batch = np.ndarray(shape=(self.batch_Size, self.vector_dim + 1, seq_length+1))
         for i in range(self.batch_Size):
             sequence = np.random.binomial(1, 0.5, size=(self.vector_dim, seq_length))  # 8 x T
