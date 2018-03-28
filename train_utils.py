@@ -1,14 +1,11 @@
 import torch
-import json
 from torch.autograd import Variable
-import numpy as np
 
-# Code snippet taken from:
-# https://github.com/loudinthecloud/pytorch-ntm/blob/db56fb86f9f68abb799ff9120f9beda64837bece/train.py#L67
+
 def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples, controller_type,
-                    num_inputs, num_outputs,controller_size, controller_layers, memory_size,
+                    num_inputs, num_outputs, controller_size, controller_layers, memory_size,
                     memory_feature_size, integer_shift, batch_size, cuda):
-    basename = "checkpoints/copy-batch-{}".format(batch_num)
+    basename = "checkpoints/copy-batch-{}--{}".format(batch_num, controller_type)
 
     model_fname = basename + ".model"
 
@@ -30,7 +27,6 @@ def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples
         'cuda': cuda
     }
     torch.save(state, model_fname)
-
 
 
 def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_size):

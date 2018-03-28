@@ -6,7 +6,7 @@ import torch
 from training_dataset import random_binary
 from train_utils import save_checkpoint, evaluate
 import argparse
-import json
+
 
 def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_outputs,
         controller_size, controller_type, controller_layers, memory_size, integer_shift,
@@ -92,7 +92,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         # The cost is the number of error bits per sequence
         binary_output = output.clone().data
         binary_output = binary_output > 0.5
-        #binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
         cost = torch.sum(torch.abs(binary_output.float() - batch.data))
 
         losses += [loss.data[0]]
@@ -210,8 +209,6 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 
         if total_examples / checkpoint_interval >= total_batches:
             break
-
-
 
 
 if __name__ == '__main__':
