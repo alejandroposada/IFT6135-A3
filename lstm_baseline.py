@@ -11,8 +11,18 @@ class LSTM(nn.Module):
         self.lstm = nn.LSTM(num_inputs, num_hidden)
         self.mlp = nn.Linear(num_hidden, num_inputs)
 
+        self.init_weights(self.lstm)
+        self.init_weights(self.mlp)
+
+    def init_weights(self, layer):
+        # Initialize weights
+        for name, param in layer.named_parameters():
+            if 'bias' in name:
+                nn.init.constant(param, 0.0)
+            elif 'weight' in name:
+                nn.init.xavier_normal(param)
+
     def init_hidden(self, batch_size):
-        num_hidden = self.num_hidden
         self.hidden = (autograd.Variable(torch.randn((1, batch_size, self.num_hidden))),
                        autograd.Variable(torch.randn((1, batch_size, self.num_hidden))))
 
