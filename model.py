@@ -91,6 +91,7 @@ class NTMReadHead(nn.Module):
     def __init__(self, use_cuda):
         super(NTMReadHead, self).__init__()
         self.use_cuda = use_cuda
+        self.r_init = None
 
     def forward(self, w, memory):
         """
@@ -104,7 +105,13 @@ class NTMReadHead(nn.Module):
         return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
 
     def create_state(self, batch_size, memory_feature_size):
-        random_init = Variable(torch.FloatTensor(np.random.rand(batch_size, memory_feature_size) * 0.05))
+        if self.r_init is None:
+            r_init = Variable(torch.randn(1, memory_feature_size) * 0.01)
+            self.r_init = r_init
+        else:
+            r_init = self.r_init
+
+        random_init = r_init.clone().repeat(batch_size, 1)
         if self.use_cuda:
             return random_init.cuda()
         return random_init
@@ -248,24 +255,31 @@ class NTM(nn.Module):
         self.write_head = NTMWriteHead(use_cuda=self.use_cuda)
 
         #  Initialize memory
-        self.memory = Variable(torch.zeros(self.batch_size, self.memory_size, self.memory_feature_size))
-        if self.use_cuda:
-            self.memory = self.memory.cuda()
+        self.register_buffer('mem_bias', Variable(torch.Tensor(self.memory_size, self.memory_feature_size)))
+        # Initialize memory bias
+        stdev = 1 / (np.sqrt(self.memory_size + self.memory_feature_size))
+        nn.init.uniform(self.mem_bias, -stdev, stdev)
+        self.init_memory()
 
         #  Initialize weights
-        self.weight = Variable(torch.zeros(self.batch_size, self.memory_size))
-        if self.use_cuda:
-            self.weight = self.weight.cuda()
+        self.init_headweights()
 
         # Initialize a fully connected layer to produce the actual output:
-        self.fc = nn.Linear(self.controller_size, self.num_outputs)
+        self.fc = nn.Linear(self.controller_size+self.memory_feature_size, self.num_outputs)
+        xavier_uniform(self.fc.weight, gain=1)
 
         # Corresponding to beta, kappa, gamma, g, s, e, a sizes from the paper
         self.params = ['beta', 'kappa', 'gamma', 'g', 's', 'e', 'a']
         self.params_lengths = [1, self.memory_feature_size, 1, 1, self.integer_shift,
                                self.memory_feature_size, self.memory_feature_size]
 
-        self.fc_params = nn.Linear(self.controller_size, sum(self.params_lengths))
+        self.fc_params_read = nn.Linear(self.controller_size, sum(self.params_lengths[:-2]))
+        xavier_uniform(self.fc_params_read.weight, gain=1)
+        nn.init.normal(self.fc_params_read.bias, std=0.01)
+
+        self.fc_params_write = nn.Linear(self.controller_size, sum(self.params_lengths))
+        xavier_uniform(self.fc_params_write.weight, gain=1)
+        nn.init.normal(self.fc_params_write.bias, std=0.01)
 
         # Corresponding to beta, kappa, gamma, g, s, e, a
         # (choice of activations selected to obey corresponding domain restrictions from the paper)
@@ -280,21 +294,46 @@ class NTM(nn.Module):
         if self.use_cuda:
             self.cuda()
 
-    def convert_to_params(self, output):
+    def init_headweights(self):
+        self.weight_r = Variable(torch.zeros(self.batch_size, self.memory_size))
+        self.weight_w = Variable(torch.zeros(self.batch_size, self.memory_size))
+        if self.use_cuda:
+            self.weight_r = self.weight_r.cuda()
+            self.weight_w = self.weight_w.cuda()
+
+    def init_memory(self):
+        self.memory = self.mem_bias.clone().repeat(self.batch_size, 1, 1)
+        if self.use_cuda:
+            self.memory = self.memory.cuda()
+
+    def convert_to_params(self, output, mode='read'):
         """Transform output from controller into parameters for attention and write heads
         :param output: output from controller.
         """
-        to_return = {'beta': 0,
-                     'kappa': 0,
-                     'gamma': 0,
-                     'g': 0,
-                     's': 0,
-                     'e': 0,
-                     'a': 0}
-        o = self.fc_params(output)
-        l = np.cumsum([0] + self.params_lengths)
-        for idx in range(len(l)-1):
-            to_return[self.params[idx]] = self.activations[self.params[idx]](o.squeeze(0)[:, l[idx]:l[idx+1]])
+
+        if mode == 'read':
+            to_return = {'beta': 0,
+                         'kappa': 0,
+                         'gamma': 0,
+                         'g': 0,
+                         's': 0}
+            o = self.fc_params_read(output)
+            l = np.cumsum([0] + self.params_lengths[:-2])
+            for idx in range(len(l) - 1):
+                to_return[self.params[idx]] = self.activations[self.params[idx]](o.squeeze(0)[:, l[idx]:l[idx + 1]])
+
+        elif mode == 'write':
+            to_return = {'beta': 0,
+                         'kappa': 0,
+                         'gamma': 0,
+                         'g': 0,
+                         's': 0,
+                         'e': 0,
+                         'a': 0}
+            o = self.fc_params_write(output)
+            l = np.cumsum([0] + self.params_lengths)
+            for idx in range(len(l)-1):
+                to_return[self.params[idx]] = self.activations[self.params[idx]](o.squeeze(0)[:, l[idx]:l[idx+1]])
 
         return to_return
 
@@ -311,13 +350,16 @@ class NTM(nn.Module):
         else:
             o = self.controller.forward(x, r)
 
-        params = self.convert_to_params(o)
-        self.weight = self.attention.forward(params, self.weight, self.memory, self.integer_shift)
-        next_r = self.read_head.forward(self.weight, self.memory)
-        self.memory = self.write_head.forward(self.weight, self.memory, params)
+        read_params = self.convert_to_params(o, mode='read')
+        self.weight_r = self.attention.forward(read_params, self.weight_r, self.memory, self.integer_shift)
+        next_r = self.read_head.forward(self.weight_r, self.memory)
+        write_params = self.convert_to_params(o, mode='write')
+        self.weight_w = self.attention.forward(write_params, self.weight_w, self.memory, self.integer_shift)
+        self.memory = self.write_head.forward(self.weight_w, self.memory, write_params)
 
         # Generate Output
-        output = F.sigmoid(self.fc(o))
+        o_r = torch.cat((o.squeeze(0), next_r), 1)
+        output = F.sigmoid(self.fc(o_r))
 
         if self.controller_type == 'LSTM':
             return output, next_r, lstm_h, lstm_c

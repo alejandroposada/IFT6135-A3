@@ -50,18 +50,28 @@ def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_s
     total_cost = 0
     for batch in testset:
         batch = Variable(batch)
+        model.init_headweights()
+        model.init_memory()
 
         if cuda:
             batch = batch.cuda()
         next_r = model.read_head.create_state(batch_size, memory_feature_size)
         if controller_type == 'LSTM':
             lstm_h, lstm_c = model.controller.create_state(batch_size)
-        output = Variable(torch.zeros(batch.size()))
-        if cuda:
-            output = output.cuda()
 
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
+            if controller_type == 'LSTM':
+                _, next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            elif controller_type == 'MLP':
+                _, next_r = model.forward(x=x, r=next_r)
+
+        # Read output without input
+        x = Variable(torch.zeros(batch.size()[0:2]))
+        output = Variable(torch.zeros(batch.size()))
+        if cuda:
+            output = output.cuda()
+        for i in range(batch.size()[2]):
             if controller_type == 'LSTM':
                 output[:, :, i], next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':

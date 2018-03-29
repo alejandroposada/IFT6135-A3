@@ -52,17 +52,24 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         total_examples = from_before['total_examples']
 
     # Dataset creation
-    training_dataset = random_binary(max_seq_length=20, num_sequences=200, vector_dim=8,
+    training_dataset = random_binary(max_seq_length=20, num_sequences=500, vector_dim=8,
                                      batch_Size=batch_size)
     testing_dataset = random_binary(max_seq_length=10, num_sequences=50, vector_dim=8,
                                     batch_Size=batch_size)
 
     # Optimizer type and loss function
-    optimizer = torch.optim.Adam(ntm.parameters(), lr=learning_rate)
+    # optimizer = torch.optim.Adam(ntm.parameters(), lr=learning_rate)
+    optimizer = torch.optim.RMSprop(ntm.parameters(), lr=learning_rate, momentum=0.9, alpha=0.95)
     criterion = torch.nn.BCELoss()
 
     np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
     for batch in training_dataset:
+
+        optimizer.zero_grad()
+        # Initialize head weights and memory to zero
+        ntm.init_headweights()
+        ntm.init_memory()
+
         batch = Variable(batch)
         if cuda:
             batch = batch.cuda()
@@ -70,10 +77,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         if controller_type == 'LSTM':
             lstm_h, lstm_c = ntm.controller.create_state(batch_size)
 
-        optimizer.zero_grad()
-        output = Variable(torch.zeros(batch.size()))
-        if cuda:
-            output = output.cuda()
         #  Read batch in
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
@@ -84,8 +87,10 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
 
         # Output response
         x = Variable(torch.zeros(batch.size()[0:2]))
+        output = Variable(torch.zeros(batch.size()))
         if cuda:
             x = x.cuda()
+            output = output.cuda()
 
         for i in range(batch.size()[2]):
             if controller_type == 'LSTM':
@@ -94,7 +99,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
                 output[:, :, i], next_r = ntm.forward(x=x, r=next_r)
 
         loss = criterion(output, batch)
-        loss.backward(retain_graph=True)
+        loss.backward()
         optimizer.step()
 
         print("Current Batch Loss:", round(loss.data[0], 3))
@@ -229,8 +234,8 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='NTM', help='"NTM" or "LSTM" (baseline)')
-    parser.add_argument('--learn_rate', type=float, default=0.01, help='Learning rate')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
+    parser.add_argument('--learn_rate', type=float, default=0.0002, help='Learning rate')
+    parser.add_argument('--batch_size', type=int, default=16, help='batch_size')
     parser.add_argument('--M', type=int, default=20, help='memory feature size')
     parser.add_argument('--N', type=int, default=128, help='memory size')
     parser.add_argument('--num_inputs', type=int, default=9, help='number of inputs in NTM')
