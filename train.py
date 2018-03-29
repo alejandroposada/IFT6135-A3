@@ -4,7 +4,7 @@ import numpy as np
 from torch.autograd import Variable
 import torch
 from training_dataset import random_binary
-from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline
+from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline, xavier_init
 import argparse
 
 
@@ -23,6 +23,9 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
                   controller_type=controller_type, controller_layers=controller_layers,
                   memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
                   batch_size=batch_size, use_cuda=cuda)
+        
+        xavier_init(ntm)
+
         # Constants for keeping track
         total_examples = 0
         losses = []
@@ -81,7 +84,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
                 _, next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':
                 _, next_r = ntm.forward(x=x, r=next_r)
-
         # Output response
         x = Variable(torch.zeros(batch.size()[0:2]))
         if cuda:
@@ -180,10 +182,10 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
             output = output.cuda()
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
-            output[:, :, i] = lstm.forward(x)
+            lstm.forward(x)
 
         # Output response
-        x = Variable(torch.zeros(batch.size()[0:2]))
+        x = Variable(torch.zeros(batch.size()[0:2]) + 0.5)
         if cuda:
             x = x.cuda()
         for i in range(batch.size()[2]):

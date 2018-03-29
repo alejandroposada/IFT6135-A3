@@ -95,6 +95,13 @@ def evaluate_lstm_baseline(model, testset, batch_size, cuda):
 
         for i in range(batch.size()[2]):
             x = batch[:, :, i]
+            model.forward(x)
+
+        # Output response
+        x = Variable(torch.zeros(batch.size()[0:2]) + 0.5)
+        if cuda:
+            x = x.cuda()
+        for i in range(batch.size()[2]):
             output[:, :, i] = model.forward(x)
 
         # The cost is the number of error bits per sequence
@@ -108,3 +115,21 @@ def evaluate_lstm_baseline(model, testset, batch_size, cuda):
         if count >= 4:
             break
     return cost / (count - 1), binary_output, batch
+
+
+# Taken from https://github.com/kuc2477/pytorch-ntm/blob/7f5fa872f08c0214ccf69a35aeba286ff76890b6/utils.py
+def xavier_init(model, uniform=False):
+    modules = [
+        m for n, m in model.named_modules() if
+        'conv' in n or 'linear' in n
+    ]
+
+    parameters = [
+        p for
+        m in modules for
+        p in m.parameters() if
+        p.dim() >= 2
+    ]
+
+    for p in parameters:
+        init.xavier_normal(p) if uniform else init.xavier_normal(p)
