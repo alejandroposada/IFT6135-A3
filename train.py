@@ -4,7 +4,7 @@ import numpy as np
 from torch.autograd import Variable
 import torch
 from training_dataset import sequence_loader
-from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline
+from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline, clip_gradients
 import argparse
 from training_dataset import sequence_loader
 
@@ -87,7 +87,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
             dummy = dummy.cuda()
             output = output.cuda()
 
-        next_r = model.read_head.create_state(batch_size, memory_feature_size)
+        next_r = model.read_head.create_state(batch_size)
         if controller_type == 'LSTM':
             lstm_h, lstm_c = model.controller.create_state(batch_size)
 
@@ -108,12 +108,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
         optimizer.zero_grad()
         loss = criterion(output, y)
         loss.backward(retain_graph=True)
-
-        # Clip Gradient between [10, 10].
-        parameters = list(filter(lambda p: p.grad is not None, ntm.parameters()))
-        for p in parameters:
-            p.grad.data.clamp_(-10, 10)
-
+        clip_gradients(model)
         optimizer.step()
 
         total_examples += batch_size
