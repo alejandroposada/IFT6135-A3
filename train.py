@@ -2,9 +2,10 @@ from model import NTM
 from lstm_baseline import LSTM
 import numpy as np
 from torch.autograd import Variable
+import torch.nn.functional as F
 import torch
 from training_dataset import sequence_loader
-from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline, clip_gradients
+from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline, clip_gradients, xavier_init
 import argparse
 from training_dataset import sequence_loader
 
@@ -60,6 +61,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
                     batch_size=batch_size,
                     use_cuda=cuda)
         model.load_state_dict(state_dict)
+        xavier_init(model)
         losses = from_before['loss']
         costs = from_before['cost']
         seq_lens = from_before['seq_lengths']
@@ -73,7 +75,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
     dataloader = sequence_loader(num_batches=total_batches, batch_size=batch_size, max_length=20)
 
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, momentum=0.9, alpha=0.95)
-    criterion = torch.nn.BCELoss()
+    criterion = torch.nn.BCEWithLogitsLoss()
 
     np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
     for batch_num, (x, y, dummy) in enumerate(dataloader):
@@ -106,7 +108,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
 
         # Backward pass
         optimizer.zero_grad()
-        loss = criterion(output, y)
+        loss = criterion(F.sigmoid(output), y)
         loss.backward(retain_graph=True)
         clip_gradients(model)
         optimizer.step()
@@ -132,6 +134,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
         # Checkpoint model
         if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
             print("Saving checkpoint!")
+
             save_checkpoint(model, total_examples / batch_size,
                             losses, costs, seq_lens,
                             total_examples, controller_type, num_inputs,
