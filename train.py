@@ -66,6 +66,8 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
         total_examples = from_before['total_examples']
         final_checkpoint_batch = len(losses)
         prev_print_batch = 0
+    if cuda:
+        model.cuda()
 
     # Dataset creation
     dataloader = sequence_loader(num_batches=total_batches, batch_size=batch_size, max_length=20)
@@ -73,8 +75,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, momentum=0.9, alpha=0.95)
     criterion = torch.nn.BCELoss()
 
-    np.random.seed(1)  # reset training seed to ensure that batches remain the same between runs!
-
+    np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
     for batch_num, (x, y, dummy) in enumerate(dataloader):
         input_seq_length = x.shape[0]
         output_seq_length = y.shape[0]
@@ -84,6 +85,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
             x = x.cuda()
             y = y.cuda()
             dummy = dummy.cuda()
+            output = output.cuda()
 
         next_r = model.read_head.create_state(batch_size, memory_feature_size)
         if controller_type == 'LSTM':
@@ -92,13 +94,13 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
         # Forward pass
         for i in range(input_seq_length):
             if controller_type == 'LSTM':
-                _, next_r, lstm_h, lstm_c = model(x=x[i], r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+                _, next_r, lstm_h, lstm_c = model.forward(x=x[i], r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':
                 _, next_r = model.forward(x=x[i], r=next_r)
         # Get output
         for i in range(output_seq_length):
             if controller_type == 'LSTM':
-                output[i], next_r, lstm_h, lstm_c = model(x=dummy[i], r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+                output[i], next_r, lstm_h, lstm_c = model.forward(x=dummy[i], r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':
                 output[i], next_r = model(x=dummy[i], r=next_r)
 
