@@ -73,9 +73,13 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
     optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, momentum=0.9, alpha=0.95)
     criterion = torch.nn.BCELoss()
 
-    np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
+    np.random.seed(1)  # reset training seed to ensure that batches remain the same between runs!
 
     for batch_num, (x, y, dummy) in enumerate(dataloader):
+        input_seq_length = x.shape[0]
+        output_seq_length = y.shape[0]
+        output = Variable(torch.zeros(y.size()))
+
         if cuda:
             x = x.cuda()
             y = y.cuda()
@@ -86,17 +90,22 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
             lstm_h, lstm_c = model.controller.create_state(batch_size)
 
         # Forward pass
-        if controller_type == 'LSTM':
-            _, next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
-            output = model.forward(x=dummy, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
-        elif controller_type == 'MLP':
-            _, next_r = model.forward(x=x, r=next_r)
-            output = model.forward(x=dummy, r=next_r)
+        for i in range(input_seq_length):
+            if controller_type == 'LSTM':
+                _, next_r, lstm_h, lstm_c = model(x=x[i], r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            elif controller_type == 'MLP':
+                _, next_r = model.forward(x=x[i], r=next_r)
+        # Get output
+        for i in range(output_seq_length):
+            if controller_type == 'LSTM':
+                output[i], next_r, lstm_h, lstm_c = model(x=dummy[i], r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            elif controller_type == 'MLP':
+                output[i], next_r = model(x=dummy[i], r=next_r)
 
         # Backward pass
         optimizer.zero_grad()
         loss = criterion(output, y)
-        loss.backward()
+        loss.backward(retain_graph=True)
         optimizer.step()
 
         total_examples += batch_size
@@ -118,15 +127,15 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
             prev_print_batch = batch_num + final_checkpoint_batch
 
         # Checkpoint model
-        # if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
-        #     print("Saving checkpoint!")
-        #     save_checkpoint(model, total_examples / batch_size,
-        #                     losses, costs, seq_lens,
-        #                     total_examples, None, num_inputs,
-        #                     num_outputs, None, None,
-        #                     None, None, None,
-        #                     batch_size, cuda, hidden_dim,
-        #                     num_layers, 'LSTM')
+        if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
+            print("Saving checkpoint!")
+            save_checkpoint(model, total_examples / batch_size,
+                            losses, costs, seq_lens,
+                            total_examples, controller_type, num_inputs,
+                            num_outputs, controller_size, controller_layers,
+                            memory_size, memory_feature_size, integer_shift,
+                            batch_size, cuda, None,
+                            None, 'NTM')
         if total_examples / checkpoint_interval >= total_batches:
                 break
 
@@ -235,7 +244,7 @@ if __name__ == '__main__':
     parser.add_argument('--M', type=int, default=20, help='memory feature size')
     parser.add_argument('--N', type=int, default=128, help='memory size')
     parser.add_argument('--num_inputs', type=int, default=9, help='number of inputs in NTM')
-    parser.add_argument('--num_outputs', type=int, default=9, help='number of outputs in NTM')
+    parser.add_argument('--num_outputs', type=int, default=8, help='number of outputs in NTM')
     parser.add_argument('--controller_size', type=int, default=100, help='size of controller output of NTM')
     parser.add_argument('--controller_type', type=str, default="LSTM", help='type of controller of NTM')
     parser.add_argument('--cuda', action='store_true', default=False,
