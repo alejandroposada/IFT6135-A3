@@ -84,6 +84,7 @@ class MLPController(Controller):
             self.mlp.cuda()
 
     def forward(self, x, r):
+        print(x.squeeze(0).shape, r.shape)
         x = torch.cat((r, x.squeeze(0)), 1)
         output = self.mlp(x.unsqueeze(0))
         return output.squeeze(0)
@@ -256,7 +257,12 @@ class NTM(nn.Module):
         #  Initialize memory
         # self.register_buffer('mem_bias', Variable(torch.Tensor(self.memory_size, self.memory_feature_size)))
         #  Initialize memory
-        self.register_parameter('mem_bias', Parameter(torch.Tensor(self.memory_size, self.memory_feature_size)))
+        if use_cuda:
+            self.register_parameter('mem_bias',
+                                    Parameter(torch.Tensor(self.memory_size, self.memory_feature_size).cuda()))
+        else:
+            self.register_parameter('mem_bias',
+                                    Parameter(torch.Tensor(self.memory_size, self.memory_feature_size)))
         # Initialize memory bias
         stdev = 1 / (np.sqrt(self.memory_size + self.memory_feature_size))
         nn.init.uniform(self.mem_bias, -stdev, stdev)
