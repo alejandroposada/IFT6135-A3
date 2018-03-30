@@ -9,9 +9,9 @@ import argparse
 from training_dataset import sequence_loader
 
 
-def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_outputs,
-        controller_size, controller_type, controller_layers, memory_size, integer_shift,
-        checkpoint_interval, total_batches, model_file):
+def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_outputs,
+              controller_size, controller_type, controller_layers, memory_size, integer_shift,
+              checkpoint_interval, print_interval, total_batches, model_file):
     # Seeding
     SEED = 1000
     torch.manual_seed(SEED)
@@ -19,15 +19,23 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
 
     # Model Loading
     if model_file == 'None':
-        ntm = NTM(num_inputs=num_inputs, num_outputs=num_outputs, controller_size=controller_size,
-                  controller_type=controller_type, controller_layers=controller_layers,
-                  memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
-                  batch_size=batch_size, use_cuda=cuda)
+        model = NTM(num_inputs=num_inputs,
+                    num_outputs=num_outputs,
+                    controller_size=controller_size,
+                    controller_type=controller_type,
+                    controller_layers=controller_layers,
+                    memory_size=memory_size,
+                    memory_feature_size=memory_feature_size,
+                    integer_shift=integer_shift,
+                    batch_size=batch_size,
+                    use_cuda=cuda)
         # Constants for keeping track
         total_examples = 0
         losses = []
         costs = []
         seq_lens = []
+        prev_print_batch = 0  # For printing purposes
+        final_checkpoint_batch = 0
     else:
         from_before = torch.load(model_file)
         state_dict = from_before['state_dict']
@@ -41,90 +49,86 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         integer_shift = from_before['integer_shift']
         batch_size = from_before['batch_size']
         cuda = from_before['cuda']
-        ntm = NTM(num_inputs=num_inputs, num_outputs=num_outputs, controller_size=controller_size,
-                  controller_type=controller_type, controller_layers=controller_layers,
-                  memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
-                  batch_size=batch_size, use_cuda=cuda)
-        ntm.load_state_dict(state_dict)
+        model = NTM(num_inputs=num_inputs,
+                    num_outputs=num_outputs,
+                    controller_size=controller_size,
+                    controller_type=controller_type,
+                    controller_layers=controller_layers,
+                    memory_size=memory_size,
+                    memory_feature_size=memory_feature_size,
+                    integer_shift=integer_shift,
+                    batch_size=batch_size,
+                    use_cuda=cuda)
+        model.load_state_dict(state_dict)
         losses = from_before['loss']
         costs = from_before['cost']
         seq_lens = from_before['seq_lengths']
         total_examples = from_before['total_examples']
+        final_checkpoint_batch = len(losses)
+        prev_print_batch = 0
 
     # Dataset creation
-    training_dataset = random_binary(max_seq_length=20, num_sequences=200, vector_dim=8,
-                                     batch_Size=batch_size)
-    testing_dataset = random_binary(max_seq_length=10, num_sequences=50, vector_dim=8,
-                                    batch_Size=batch_size)
+    dataloader = sequence_loader(num_batches=total_batches, batch_size=batch_size, max_length=20)
 
-    # Optimizer type and loss function
-    optimizer = torch.optim.Adam(ntm.parameters(), lr=learning_rate)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=learning_rate, momentum=0.9, alpha=0.95)
     criterion = torch.nn.BCELoss()
 
     np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
-    for batch in training_dataset:
-        batch = Variable(batch)
-        if cuda:
-            batch = batch.cuda()
-        next_r = ntm.read_head.create_state(batch_size, memory_feature_size)
-        if controller_type == 'LSTM':
-            lstm_h, lstm_c = ntm.controller.create_state(batch_size)
 
-        optimizer.zero_grad()
-        output = Variable(torch.zeros(batch.size()))
-        if cuda:
-            output = output.cuda()
-        # Read batch in
-        for i in range(batch.size()[2]):
-            x = batch[:, :, i]
-            if controller_type == 'LSTM':
-                _, next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
-            elif controller_type == 'MLP':
-                _, next_r = ntm.forward(x=x, r=next_r)
-        # Output response
-        x = Variable(torch.zeros(batch.size()[0:2]))
+    for batch_num, (x, y, dummy) in enumerate(dataloader):
         if cuda:
             x = x.cuda()
+            y = y.cuda()
+            dummy = dummy.cuda()
 
-        for i in range(batch.size()[2]):
-            if controller_type == 'LSTM':
-                output[:, :, i], next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
-            elif controller_type == 'MLP':
-                output[:, :, i], next_r = ntm.forward(x=x, r=next_r)
+        next_r = model.read_head.create_state(batch_size, memory_feature_size)
+        if controller_type == 'LSTM':
+            lstm_h, lstm_c = model.controller.create_state(batch_size)
 
-        loss = criterion(output, batch)
-        loss.backward(retain_graph=True)
+        # Forward pass
+        if controller_type == 'LSTM':
+            _, next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+            output = model.forward(x=dummy, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+        elif controller_type == 'MLP':
+            _, next_r = model.forward(x=x, r=next_r)
+            output = model.forward(x=dummy, r=next_r)
+
+        # Backward pass
+        optimizer.zero_grad()
+        loss = criterion(output, y)
+        loss.backward()
         optimizer.step()
 
-        print("Current Batch Loss:", round(loss.data[0], 3))
         total_examples += batch_size
 
-        # The cost is the number of error bits per sequence
+        # Compute cost (error bits per sequence)
         binary_output = output.clone().data
         binary_output = binary_output > 0.5
-        cost = torch.sum(torch.abs(binary_output.float() - batch.data))
+        cost = torch.sum(torch.abs(binary_output.float() - y.data))
 
         losses += [loss.data[0]]
         costs += [cost / batch_size]
-        seq_lens += [batch.size(2)]
+        seq_lens += [y.size(0)]
+
+        # Show progress
+        if batch_num % print_interval == 0:
+            print("Batch %d, loss %f, cost %f" % (batch_num,
+                                                  sum(losses[prev_print_batch:-1]) / print_interval,
+                                                  sum(costs[prev_print_batch:-1]) / print_interval))
+            prev_print_batch = batch_num + final_checkpoint_batch
 
         # Checkpoint model
-        if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
-            print("Saving Checkpoint!")
-            save_checkpoint(ntm, total_examples / batch_size, losses, costs, seq_lens, total_examples, controller_type,
-                            num_inputs, num_outputs, controller_size, controller_layers, memory_size,
-                            memory_feature_size, integer_shift, batch_size, cuda)
-
-            # Evaluate model on this saved checkpoint
-            test_cost, prediction, input = evaluate(model=ntm, testset=testing_dataset, batch_size=batch_size,
-                                                    memory_feature_size=memory_feature_size,
-                                                    controller_type=controller_type, cuda=cuda)
-            print("Total Test Cost (in bits per sequence):", test_cost)
-            print("Example of Input/Output")
-            print("prediction:", prediction[0])
-            print("Input:", input[0])
+        # if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
+        #     print("Saving checkpoint!")
+        #     save_checkpoint(model, total_examples / batch_size,
+        #                     losses, costs, seq_lens,
+        #                     total_examples, None, num_inputs,
+        #                     num_outputs, None, None,
+        #                     None, None, None,
+        #                     batch_size, cuda, hidden_dim,
+        #                     num_layers, 'LSTM')
         if total_examples / checkpoint_interval >= total_batches:
-            break
+                break
 
 
 def train_baseline(learning_rate, batch_size, cuda, num_inputs, num_outputs,
@@ -147,7 +151,7 @@ def train_baseline(learning_rate, batch_size, cuda, num_inputs, num_outputs,
         losses = []
         costs = []
         seq_lens = []
-        prev_print_batch = 0          # For printing purposes
+        prev_print_batch = 0  # For printing purposes
         final_checkpoint_batch = 0
     else:
         from_before = torch.load(model_file)
@@ -250,11 +254,21 @@ if __name__ == '__main__':
 
     # Train NTM
     if args.model == 'NTM':
-        run(learning_rate=args.learn_rate, batch_size=args.batch_size, cuda=args.cuda, memory_feature_size=args.M,
-            num_inputs=args.num_inputs, num_outputs=args.num_outputs, controller_size=args.controller_size,
-            controller_type=args.controller_type, controller_layers=args.controller_layers, memory_size=args.N,
-            integer_shift=args.integer_shift, checkpoint_interval=args.checkpoint_interval,
-            total_batches=args.total_batches, model_file=args.model_file)
+        train_ntm(learning_rate=args.learn_rate,
+                  batch_size=args.batch_size,
+                  cuda=args.cuda,
+                  memory_feature_size=args.M,
+                  num_inputs=args.num_inputs,
+                  num_outputs=args.num_outputs,
+                  controller_size=args.controller_size,
+                  controller_type=args.controller_type,
+                  controller_layers=args.controller_layers,
+                  memory_size=args.N,
+                  integer_shift=args.integer_shift,
+                  checkpoint_interval=args.checkpoint_interval,
+                  print_interval=args.print_interval,
+                  total_batches=args.total_batches,
+                  model_file=args.model_file)
 
     # Train LSTM (baseline)
     elif args.model == 'LSTM':
