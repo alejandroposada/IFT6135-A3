@@ -1,10 +1,12 @@
 import torch
 from torch.autograd import Variable
+import torch.nn as nn
 
 
 def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples, controller_type,
                     num_inputs, num_outputs, controller_size, controller_layers, memory_size,
-                    memory_feature_size, integer_shift, batch_size, cuda, num_hidden=None, model_type='NTM'):
+                    memory_feature_size, integer_shift, batch_size, cuda, hidden_dim=None,
+                    num_layers=None, model_type='NTM'):
     if model_type == 'NTM':
         basename = "checkpoints/ntm/copy-batch-{}--{}".format(batch_num, controller_type)
         model_fname = basename + ".model"
@@ -36,8 +38,9 @@ def save_checkpoint(model, batch_num, losses, costs, seq_lengths, total_examples
             'seq_lengths': seq_lengths,
             'total_examples': total_examples,
             'num_inputs': num_inputs,
-            'num_hidden': num_hidden,
+            'hidden_dim': hidden_dim,
             'num_outputs': num_outputs,
+            'num_layers': num_layers,
             'batch_size': batch_size,
             'cuda': cuda
         }
@@ -132,4 +135,4 @@ def xavier_init(model, uniform=False):
     ]
 
     for p in parameters:
-        init.xavier_normal(p) if uniform else init.xavier_normal(p)
+        nn.init.xavier_normal(p) if uniform else nn.init.xavier_normal(p)
