@@ -5,11 +5,12 @@ from torch.nn import functional as F
 
 
 class LSTM(nn.Module):
-    def __init__(self, num_inputs, num_hidden):
+    def __init__(self, num_inputs, num_hidden, num_layers):
         super(LSTM, self).__init__()
         self.num_hidden = num_hidden
-        self.lstm = nn.LSTM(num_inputs, num_hidden)
-        self.mlp = nn.Linear(num_hidden, num_inputs)
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(num_inputs, num_hidden, num_layers)
+        self.mlp = nn.Linear(num_hidden, num_inputs - 1)  # TODO: make num_inputs 8 instead of 9. More clear!
 
         self.init_weights(self.lstm)
         self.init_weights(self.mlp)
@@ -22,12 +23,15 @@ class LSTM(nn.Module):
             elif 'weight' in name:
                 nn.init.xavier_normal(param)
 
-    def init_hidden(self, batch_size):
-        self.hidden = (autograd.Variable(torch.randn((1, batch_size, self.num_hidden))),
-                       autograd.Variable(torch.randn((1, batch_size, self.num_hidden))))
+    def init_hidden(self, batch_size, cuda):
+        self.hidden = (autograd.Variable(torch.randn((self.num_layers, batch_size, self.num_hidden))),
+                       autograd.Variable(torch.randn((self.num_layers, batch_size, self.num_hidden))))
+        if cuda:
+            self.hidden = (autograd.Variable(torch.randn((self.num_layers, batch_size, self.num_hidden)).cuda()),
+                           autograd.Variable(torch.randn((self.num_layers, batch_size, self.num_hidden))).cuda())
 
     def forward(self, x):
-        x, self.hidden = self.lstm(x.unsqueeze(0), self.hidden)
+        x, self.hidden = self.lstm(x, self.hidden)
         x = self.mlp(x)
         return F.sigmoid(x)
 
