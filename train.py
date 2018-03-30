@@ -147,7 +147,8 @@ def train_baseline(learning_rate, batch_size, cuda, num_inputs, num_outputs,
         losses = []
         costs = []
         seq_lens = []
-        prev_print_batch = 0
+        prev_print_batch = 0          # For printing purposes
+        final_checkpoint_batch = 0
     else:
         from_before = torch.load(model_file)
         state_dict = from_before['state_dict']
@@ -161,6 +162,8 @@ def train_baseline(learning_rate, batch_size, cuda, num_inputs, num_outputs,
         costs = from_before['cost']
         seq_lens = from_before['seq_lengths']
         model.load_state_dict(state_dict)
+        final_checkpoint_batch = len(losses)
+        prev_print_batch = 0
     if cuda:
         model.cuda()
 
@@ -204,7 +207,7 @@ def train_baseline(learning_rate, batch_size, cuda, num_inputs, num_outputs,
             print("Batch %d, loss %f, cost %f" % (batch_num,
                                                   sum(losses[prev_print_batch:-1]) / print_interval,
                                                   sum(costs[prev_print_batch:-1]) / print_interval))
-            prev_print_batch = batch_num
+            prev_print_batch = batch_num + final_checkpoint_batch
 
         # Checkpoint model
         if (checkpoint_interval != 0) and (total_examples % checkpoint_interval == 0):
