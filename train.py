@@ -6,7 +6,7 @@ import torch
 from training_dataset import sequence_loader
 from train_utils import save_checkpoint, evaluate, evaluate_lstm_baseline
 import argparse
-from training_dataset import dataloader
+from training_dataset import sequence_loader
 
 
 def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_outputs,
