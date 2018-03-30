@@ -73,7 +73,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         batch = Variable(batch)
         if cuda:
             batch = batch.cuda()
-        next_r = ntm.read_head.create_state(batch_size, memory_feature_size)
+        next_r = ntm.read_head.create_state(batch_size)
         if controller_type == 'LSTM':
             lstm_h, lstm_c = ntm.controller.create_state(batch_size)
 

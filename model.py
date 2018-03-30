@@ -88,10 +88,12 @@ class MLPController(Controller):
       
 
 class NTMReadHead(nn.Module):
-    def __init__(self, use_cuda):
+    def __init__(self, use_cuda, memory_feature_size):
         super(NTMReadHead, self).__init__()
         self.use_cuda = use_cuda
         self.r_init = None
+        self.memory_feature_size = memory_feature_size
+        self.register_parameter('read_bias', Parameter(torch.randn(1, self.memory_feature_size) * 0.01))
 
     def forward(self, w, memory):
         """
@@ -104,14 +106,8 @@ class NTMReadHead(nn.Module):
         """
         return torch.matmul(w.unsqueeze(1), memory).squeeze(1)
 
-    def create_state(self, batch_size, memory_feature_size):
-        if self.r_init is None:
-            r_init = Variable(torch.randn(1, memory_feature_size) * 0.01)
-            self.r_init = r_init
-        else:
-            r_init = self.r_init
-
-        random_init = r_init.clone().repeat(batch_size, 1)
+    def create_state(self, batch_size):
+        random_init = self.read_bias.clone().repeat(batch_size, 1)
         if self.use_cuda:
             return random_init.cuda()
         return random_init
@@ -251,11 +247,13 @@ class NTM(nn.Module):
                                             batch_size=self.batch_size, use_cuda=self.use_cuda)
 
         self.attention = NTMAttention(use_cuda=self.use_cuda)
-        self.read_head = NTMReadHead(use_cuda=self.use_cuda)
+        self.read_head = NTMReadHead(use_cuda=self.use_cuda, memory_feature_size=self.memory_feature_size)
         self.write_head = NTMWriteHead(use_cuda=self.use_cuda)
 
         #  Initialize memory
-        self.register_buffer('mem_bias', Variable(torch.Tensor(self.memory_size, self.memory_feature_size)))
+        # self.register_buffer('mem_bias', Variable(torch.Tensor(self.memory_size, self.memory_feature_size)))
+        #  Initialize memory
+        self.register_parameter('mem_bias', Parameter(torch.Tensor(self.memory_size, self.memory_feature_size)))
         # Initialize memory bias
         stdev = 1 / (np.sqrt(self.memory_size + self.memory_feature_size))
         nn.init.uniform(self.mem_bias, -stdev, stdev)

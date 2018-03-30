@@ -55,7 +55,7 @@ def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_s
 
         if cuda:
             batch = batch.cuda()
-        next_r = model.read_head.create_state(batch_size, memory_feature_size)
+        next_r = model.read_head.create_state(batch_size)
         if controller_type == 'LSTM':
             lstm_h, lstm_c = model.controller.create_state(batch_size)
 

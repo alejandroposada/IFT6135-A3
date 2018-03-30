@@ -28,7 +28,7 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
                         controller_type=controller_type, controller_layers=controller_layers, memory_size=memory_size,
                         memory_feature_size=memory_feature_size, integer_shift=integer_shift, batch_size=batch_size,
                         use_cuda=cuda)
-            # model.load_state_dict(state_dict)
+            model.load_state_dict(state_dict)
 
             dataset = random_binary(max_seq_length=seq_len, num_sequences=1, vector_dim=8,
                                     batch_Size=batch_size, min_seq_length=seq_len - 1)
@@ -38,7 +38,7 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
                 batch = Variable(torch.FloatTensor(batch))
                 if cuda:
                     batch = batch.cuda()
-                next_r = model.read_head.create_state(batch_size, memory_feature_size)
+                next_r = model.read_head.create_state(batch_size)
                 if controller_type == 'LSTM':
                     lstm_h, lstm_c = model.controller.create_state(1)
 
@@ -110,5 +110,5 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             ax_.set_yticks([])
         plt.show()
 
-checkpoint = "checkpoints/ntm/copy-batch-2112.0--LSTM.model"
+checkpoint = "checkpoints/ntm/copy-batch-64.0--LSTM.model"
 visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=40)
