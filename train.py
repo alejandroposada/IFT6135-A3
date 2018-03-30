@@ -87,19 +87,19 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
 
         # Output response
         x = Variable(torch.zeros(batch.size()[0:2]))
-        output = Variable(torch.zeros(batch.size()))
+        output = Variable(torch.zeros(batch[:, :, :-1].size()))
         if cuda:
             x = x.cuda()
             output = output.cuda()
 
-        for i in range(batch.size()[2]):
+        for i in range(output.size()[2]):
             if controller_type == 'LSTM':
                 output[:, :, i], next_r, lstm_h, lstm_c = ntm.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':
                 output[:, :, i], next_r = ntm.forward(x=x, r=next_r)
 
-        loss = criterion(output, batch)
-        loss.backward()
+        loss = criterion(output, batch[:, :, :-1])
+        loss.backward(retain_graph=True)
         optimizer.step()
 
         print("Current Batch Loss:", round(loss.data[0], 3))
@@ -108,7 +108,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         # The cost is the number of error bits per sequence
         binary_output = output.clone().data
         binary_output = binary_output > 0.5
-        cost = torch.sum(torch.abs(binary_output.float() - batch.data))
+        cost = torch.sum(torch.abs(binary_output.float() - batch.data[:, :, :-1]))
 
         losses += [loss.data[0]]
         costs += [cost/batch_size]
@@ -234,7 +234,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='NTM', help='"NTM" or "LSTM" (baseline)')
-    parser.add_argument('--learn_rate', type=float, default=0.0002, help='Learning rate')
+    parser.add_argument('--learn_rate', type=float, default=0.003, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=16, help='batch_size')
     parser.add_argument('--M', type=int, default=20, help='memory feature size')
     parser.add_argument('--N', type=int, default=128, help='memory size')
@@ -246,7 +246,7 @@ if __name__ == '__main__':
                         help='enables CUDA training')
     parser.add_argument('--controller_layers', type=int, default=1, help='number of layers of controller of NTM')
     parser.add_argument('--integer_shift', type=int, default=3, help='integer shift in location attention of NTM')
-    parser.add_argument('--checkpoint_interval', type=int, default=512, help='intervals to checkpoint')
+    parser.add_argument('--checkpoint_interval', type=int, default=1024, help='intervals to checkpoint')
     parser.add_argument('--total_batches', type=int, default=40, help='total number of batches to iterate through')
     parser.add_argument('--model_file', type=str, default='None', help='model file to load')
     parser.add_argument('--num_hidden', type=int, default=100, help='number of hidden units in the baseline LSTM')

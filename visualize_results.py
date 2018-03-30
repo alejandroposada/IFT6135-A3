@@ -28,12 +28,11 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
                         controller_type=controller_type, controller_layers=controller_layers, memory_size=memory_size,
                         memory_feature_size=memory_feature_size, integer_shift=integer_shift, batch_size=batch_size,
                         use_cuda=cuda)
-            model.load_state_dict(state_dict)
+            # model.load_state_dict(state_dict)
 
             dataset = random_binary(max_seq_length=seq_len, num_sequences=1, vector_dim=8,
                                     batch_Size=batch_size, min_seq_length=seq_len - 1)
 
-            criterion = torch.nn.BCELoss()
 
             for batch in dataset:
                 batch = Variable(torch.FloatTensor(batch))
@@ -54,6 +53,12 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
                     elif controller_type == 'MLP':
                         output[:, :, i], next_r = model.forward(x=x, r=next_r)
                 break
+
+        X = from_before['cost']
+        plt.plot(X)
+        plt.ylabel('Cost')
+        plt.xlabel('Number of batches (16)')
+        plt.show()
 
     elif model_type == "LSTM":
         if not cuda:  # load to CPU
@@ -105,3 +110,5 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             ax_.set_yticks([])
         plt.show()
 
+checkpoint = "checkpoints/ntm/copy-batch-2112.0--LSTM.model"
+visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=40)

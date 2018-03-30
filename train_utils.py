@@ -68,10 +68,10 @@ def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_s
 
         # Read output without input
         x = Variable(torch.zeros(batch.size()[0:2]))
-        output = Variable(torch.zeros(batch.size()))
+        output = Variable(torch.zeros(batch[:, :, :-1].size()))
         if cuda:
             output = output.cuda()
-        for i in range(batch.size()[2]):
+        for i in range(output.size()[2]):
             if controller_type == 'LSTM':
                 output[:, :, i], next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
             elif controller_type == 'MLP':
@@ -81,7 +81,7 @@ def evaluate(model, testset, batch_size, controller_type, cuda, memory_feature_s
         binary_output = output.clone().data
         binary_output = binary_output > 0.5
         # binary_output.apply_(lambda y: 0 if y < 0.5 else 1)
-        cost = torch.sum(torch.abs(binary_output.float() - batch.data))
+        cost = torch.sum(torch.abs(binary_output.float() - batch.data[:, :, :-1]))
         total_cost += cost / batch_size
 
         count += 1
