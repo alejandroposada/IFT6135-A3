@@ -136,3 +136,9 @@ def xavier_init(model, uniform=False):
 
     for p in parameters:
         nn.init.xavier_normal(p) if uniform else nn.init.xavier_normal(p)
+
+
+def clip_gradients(net, range=10):
+    parameters = list(filter(lambda p: p.grad is not None, net.parameters()))
+    for p in parameters:
+        p.grad.data.clamp_(-range, range)
