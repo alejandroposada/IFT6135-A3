@@ -256,7 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='enables CUDA training')
     parser.add_argument('--controller_layers', type=int, default=1, help='number of layers of controller of NTM')
-    parser.add_argument('--integer_shift', type=int, default=3, help='integer shift in location attention of NTM')
+    parser.add_argument('--integer_shift', type=int, default=2, help='integer shift in location attention of NTM')
     parser.add_argument('--checkpoint_interval', type=int, default=10000, help='intervals to checkpoint')
     parser.add_argument('--print_interval', type=int, default=100, help='intervals to checkpoint')
     parser.add_argument('--total_batches', type=int, default=40, help='total number of batches to iterate through')

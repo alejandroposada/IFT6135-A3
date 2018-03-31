@@ -169,10 +169,11 @@ class NTMAttention(nn.Module):
         return result
 
     def shift_convolve(self, w_s, s, int_shift):
-        assert s.size(0) == int_shift
-        t = torch.cat([w_s[-2:], w_s, w_s[:2]])
+        window_length = int_shift*2 + 1
+        assert s.size(0) == window_length
+        t = torch.cat([w_s[-window_length+1:], w_s, w_s[:window_length-1]])
         c = F.conv1d(t.view(1, 1, -1), s.view(1, 1, -1)).view(-1)
-        return c[1:-1]
+        return c[int_shift:-int_shift]
 
     def sharpen(self, w_hat, gamma):
         w = w_hat ** gamma
@@ -277,7 +278,7 @@ class NTM(nn.Module):
 
         # Corresponding to beta, kappa, gamma, g, s, e, a sizes from the paper
         self.params = ['beta', 'kappa', 'gamma', 'g', 's', 'e', 'a']
-        self.params_lengths = [1, self.memory_feature_size, 1, 1, self.integer_shift,
+        self.params_lengths = [1, self.memory_feature_size, 1, 1, 2*self.integer_shift+1,
                                self.memory_feature_size, self.memory_feature_size]
 
         self.fc_params_read = nn.Linear(self.controller_size, sum(self.params_lengths[:-2]))
