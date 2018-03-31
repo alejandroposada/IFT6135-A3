@@ -12,6 +12,8 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         controller_size, controller_type, controller_layers, memory_size, integer_shift,
         checkpoint_interval, total_batches, model_file):
 
+    model_file = "checkpoints/ntm/copy-batch-5120.0--LSTM.model"
+
     # Seeding
     SEED = 1000
     torch.manual_seed(SEED)
@@ -246,7 +248,7 @@ if __name__ == '__main__':
                         help='enables CUDA training')
     parser.add_argument('--controller_layers', type=int, default=1, help='number of layers of controller of NTM')
     parser.add_argument('--integer_shift', type=int, default=3, help='integer shift in location attention of NTM')
-    parser.add_argument('--checkpoint_interval', type=int, default=1024, help='intervals to checkpoint')
+    parser.add_argument('--checkpoint_interval', type=int, default=3000, help='intervals to checkpoint')
     parser.add_argument('--total_batches', type=int, default=40, help='total number of batches to iterate through')
     parser.add_argument('--model_file', type=str, default='None', help='model file to load')
     parser.add_argument('--num_hidden', type=int, default=100, help='number of hidden units in the baseline LSTM')

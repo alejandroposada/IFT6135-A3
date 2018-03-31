@@ -33,32 +33,66 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             dataset = random_binary(max_seq_length=seq_len, num_sequences=1, vector_dim=8,
                                     batch_Size=batch_size, min_seq_length=seq_len - 1)
 
-
             for batch in dataset:
-                batch = Variable(torch.FloatTensor(batch))
+                batch = Variable(batch)
+                model.init_headweights()
+                model.init_memory()
+
                 if cuda:
                     batch = batch.cuda()
                 next_r = model.read_head.create_state(batch_size)
                 if controller_type == 'LSTM':
-                    lstm_h, lstm_c = model.controller.create_state(1)
+                    lstm_h, lstm_c = model.controller.create_state(batch_size)
 
-                output = Variable(torch.zeros(batch.size()))
-                if cuda:
-                    output = output.cuda()
                 for i in range(batch.size()[2]):
                     x = batch[:, :, i]
                     if controller_type == 'LSTM':
-                        output[:, :, i], next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r,
-                                                                                lstm_h=lstm_h, lstm_c=lstm_c)
+                        _, next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h, lstm_c=lstm_c)
+                    elif controller_type == 'MLP':
+                        _, next_r = model.forward(x=x, r=next_r)
+
+                # Read output without input
+                x = Variable(torch.zeros(batch.size()[0:2]))
+                output = Variable(torch.zeros(batch[:, :, :-1].size()))
+                if cuda:
+                    output = output.cuda()
+                for i in range(output.size()[2]):
+                    if controller_type == 'LSTM':
+                        output[:, :, i], next_r, lstm_h, lstm_c = model.forward(x=x, r=next_r, lstm_h=lstm_h,
+                                                                                lstm_c=lstm_c)
                     elif controller_type == 'MLP':
                         output[:, :, i], next_r = model.forward(x=x, r=next_r)
+
                 break
 
-        X = from_before['cost']
-        plt.plot(X)
-        plt.ylabel('Cost')
-        plt.xlabel('Number of batches (16)')
+        print(batch[0])
+        binary_output = output.clone().data
+        binary_output = binary_output > 0.5
+        print(binary_output[0])
+
+        x = batch.data[0].numpy()
+        y = output.data[0].numpy()
+
+        # Putting the matrices together for nice display, with empty_rows between the two plots
+        fig, ax = plt.subplots(2, 1, sharex=True, figsize=(seq_len / 6, 4))
+
+        ax[0].imshow(x, cmap='binary', interpolation='nearest', aspect='auto')
+        ax[0].set_ylabel('Target', rotation=0, labelpad=30, fontsize=13)
+        im = ax[1].imshow(y, cmap='binary', interpolation='nearest', aspect='auto')
+        ax[1].set_ylabel('Output', rotation=0, labelpad=30, fontsize=13)
+
+        fig.colorbar(im, ax=ax.ravel().tolist())
+        for ax_ in ax:
+            ax_.set_xticks([])
+            ax_.set_yticks([])
         plt.show()
+
+        # X = from_before['cost']
+        # plt.plot(X)
+        # plt.ylabel('Cost')
+        # plt.xlabel('Number of batches (16)')
+        # plt.show()
+
 
     elif model_type == "LSTM":
         if not cuda:  # load to CPU
@@ -73,7 +107,6 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
 
         dataset = random_binary(max_seq_length=seq_len, num_sequences=1, vector_dim=8,
                                 batch_Size=batch_size, min_seq_length=seq_len - 1)
-        criterion = torch.nn.BCELoss()
 
         for batch in dataset:
             model.init_hidden(batch_size)
@@ -110,5 +143,5 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             ax_.set_yticks([])
         plt.show()
 
-checkpoint = "checkpoints/ntm/copy-batch-64.0--LSTM.model"
+checkpoint = "checkpoints/ntm/copy-batch-7500.0--LSTM.model"
 visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=40)

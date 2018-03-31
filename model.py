@@ -91,7 +91,6 @@ class NTMReadHead(nn.Module):
     def __init__(self, use_cuda, memory_feature_size):
         super(NTMReadHead, self).__init__()
         self.use_cuda = use_cuda
-        self.r_init = None
         self.memory_feature_size = memory_feature_size
         self.register_parameter('read_bias', Parameter(torch.randn(1, self.memory_feature_size) * 0.01))
 
