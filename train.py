@@ -121,7 +121,7 @@ def train_ntm(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, 
         cost = torch.sum(torch.abs(binary_output.float() - y.data))
 
         losses += [loss.data[0]]
-        costs += [cost / batch_size]
+        costs += [cost / (batch_size*y.size(0))]
         seq_lens += [y.size(0)]
 
         # Show progress
@@ -245,7 +245,7 @@ def train_baseline(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='NTM', help='"NTM" or "LSTM" (baseline)')
-    parser.add_argument('--learn_rate', type=float, default=0.01, help='Learning rate')
+    parser.add_argument('--learn_rate', type=float, default=0.0003, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=32, help='batch_size')
     parser.add_argument('--M', type=int, default=20, help='memory feature size')
     parser.add_argument('--N', type=int, default=128, help='memory size')
@@ -256,7 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--cuda', action='store_true', default=False,
                         help='enables CUDA training')
     parser.add_argument('--controller_layers', type=int, default=1, help='number of layers of controller of NTM')
-    parser.add_argument('--integer_shift', type=int, default=3, help='integer shift in location attention of NTM')
+    parser.add_argument('--integer_shift', type=int, default=2, help='integer shift in location attention of NTM')
     parser.add_argument('--checkpoint_interval', type=int, default=10000, help='intervals to checkpoint')
     parser.add_argument('--print_interval', type=int, default=100, help='intervals to checkpoint')
     parser.add_argument('--total_batches', type=int, default=40, help='total number of batches to iterate through')
