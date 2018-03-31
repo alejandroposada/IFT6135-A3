@@ -34,7 +34,7 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=20):
         output_seq_length = y.shape[0]
         output = Variable(torch.zeros(y.size()))
 
-        next_r = model.read_head.create_state(batch_size, memory_feature_size)
+        next_r = model.read_head.create_state(batch_size)
         if controller_type == 'LSTM':
             lstm_h, lstm_c = model.controller.create_state(batch_size)
 
