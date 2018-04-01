@@ -3,4 +3,4 @@ if [ ! -d checkpoints ]; then
     mkdir "checkpoints"
 fi
 
-python3 train.py --controller_type "MLP" --M 20 --N 128 --controller_size 100 --learn_rate 1e-2
+python3 train.py --controller_type "LSTM" --M 20 --N 128 --controller_size 100 --learn_rate 0.01
