@@ -78,6 +78,9 @@ class MLPController(Controller):
         super().__init__(input_dim, output_dim, num_layers, batch_size)
 
         self.mlp = nn.Linear(input_dim, output_dim)
+        xavier_uniform(self.mlp.weight, gain=1)
+        nn.init.normal(self.mlp.bias, std=0.01)
+
         if use_cuda:
             self.mlp.cuda()
 
@@ -88,17 +91,17 @@ class MLPController(Controller):
       
 
 class NTMReadHead(nn.Module):
-    def __init__(self, use_cuda, memory_feature_size, saved_biases=False):
+    def __init__(self, use_cuda, memory_feature_size, saved_biases=False, folder=None):
         super(NTMReadHead, self).__init__()
         self.use_cuda = use_cuda
         self.memory_feature_size = memory_feature_size
         # self.register_parameter('read_bias', Parameter(torch.randn(1, self.memory_feature_size) * 0.01))
         if saved_biases:
-            read_bias_np = np.load('biases/ntm-lstm/read_bias.npy')
+            read_bias_np = np.load('biases/'+folder+'/read_bias.npy')
             self.read_bias = Variable(torch.from_numpy(read_bias_np))
         else:
             self.read_bias = Variable(torch.randn(1, self.memory_feature_size) * 0.01)
-            np.save('biases/ntm-lstm/read_bias.npy', self.read_bias.data.numpy())
+            np.save('biases/'+folder+'/read_bias.npy', self.read_bias.data.numpy())
 
     def forward(self, w, memory):
         """
@@ -251,22 +254,27 @@ class NTM(nn.Module):
                                             output_dim=self.controller_size, num_layers=controller_layers,
                                             batch_size=self.batch_size, use_cuda=self.use_cuda)
 
+        if self.controller_type == "LSTM":
+            folder = 'ntm-lstm'
+        else:
+            folder = 'ntm-mlp'
+
         self.attention = NTMAttention(use_cuda=self.use_cuda)
         self.read_head = NTMReadHead(use_cuda=self.use_cuda,
                                      memory_feature_size=self.memory_feature_size,
-                                     saved_biases=saved_biases)
+                                     saved_biases=saved_biases, folder=folder)
         self.write_head = NTMWriteHead(use_cuda=self.use_cuda)
 
         #  Initialize memory
         # self.register_parameter('mem_bias', Parameter(torch.Tensor(self.memory_size, self.memory_feature_size)))
         if saved_biases:
-            mem_bias_np = np.load('biases/ntm-lstm/mem_bias.npy')
+            mem_bias_np = np.load('biases/'+folder+'/mem_bias.npy')
             self.mem_bias = Variable(torch.from_numpy(mem_bias_np))
         else:
             self.mem_bias = Variable(torch.Tensor(self.memory_size, self.memory_feature_size))
             stdev = 1 / (np.sqrt(self.memory_size + self.memory_feature_size))
             nn.init.uniform(self.mem_bias, -stdev, stdev)
-            np.save('biases/ntm-lstm/mem_bias.npy', self.mem_bias.data.numpy())
+            np.save('biases/'+folder+'/mem_bias.npy', self.mem_bias.data.numpy())
 
         # Initialize memory with mem_bias
         self.init_memory()

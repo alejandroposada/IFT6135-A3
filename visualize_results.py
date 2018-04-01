@@ -139,5 +139,5 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             ax_.set_yticks([])
         plt.show()
 
-checkpoint = "checkpoints/ntm/copy-batch-750.0--LSTM.model"
+checkpoint = "checkpoints/ntm/copy-batch-7500.0--MLP.model"
 visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100)

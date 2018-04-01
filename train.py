@@ -13,6 +13,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         checkpoint_interval, total_batches, model_file):
 
     # model_file = "checkpoints/ntm/copy-batch-5120.0--LSTM.model"
+    controller_type = "MLP"
 
     # Seeding
     SEED = 1000
@@ -237,7 +238,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='NTM', help='"NTM" or "LSTM" (baseline)')
-    parser.add_argument('--learn_rate', type=float, default=0.003, help='Learning rate')
+    parser.add_argument('--learn_rate', type=float, default=0.0003, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=16, help='batch_size')
     parser.add_argument('--M', type=int, default=20, help='memory feature size')
     parser.add_argument('--N', type=int, default=128, help='memory size')
