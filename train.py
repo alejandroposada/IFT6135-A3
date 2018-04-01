@@ -12,7 +12,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         controller_size, controller_type, controller_layers, memory_size, integer_shift,
         checkpoint_interval, total_batches, model_file):
 
-    model_file = "checkpoints/ntm/copy-batch-5120.0--LSTM.model"
+    # model_file = "checkpoints/ntm/copy-batch-5120.0--LSTM.model"
 
     # Seeding
     SEED = 1000
@@ -43,10 +43,11 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         integer_shift = from_before['integer_shift']
         batch_size = from_before['batch_size']
         cuda = from_before['cuda']
+        saved_biases = True
         ntm = NTM(num_inputs=num_inputs, num_outputs=num_outputs, controller_size=controller_size,
                   controller_type=controller_type, controller_layers=controller_layers,
                   memory_size=memory_size, memory_feature_size=memory_feature_size, integer_shift=integer_shift,
-                  batch_size=batch_size, use_cuda=cuda)
+                  batch_size=batch_size, use_cuda=cuda, saved_biases=saved_biases)
         ntm.load_state_dict(state_dict)
         losses = from_before['loss']
         costs = from_before['cost']

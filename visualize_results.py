@@ -20,14 +20,15 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             controller_layers = from_before['controller_layers']
             memory_size = from_before['memory_size']
             batch_size = from_before['batch_size']
+            batch_size = 2
             memory_feature_size = from_before['memory_feature_size']
             integer_shift = from_before['integer_shift']
-            batch_size = 2
+            saved_biases = True
 
             model = NTM(num_inputs=num_inputs, num_outputs=num_outputs, controller_size=controller_size,
                         controller_type=controller_type, controller_layers=controller_layers, memory_size=memory_size,
                         memory_feature_size=memory_feature_size, integer_shift=integer_shift, batch_size=batch_size,
-                        use_cuda=cuda)
+                        use_cuda=cuda, saved_biases=saved_biases)
             model.load_state_dict(state_dict)
 
             dataset = random_binary(max_seq_length=seq_len, num_sequences=1, vector_dim=8,
@@ -64,11 +65,6 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
                         output[:, :, i], next_r = model.forward(x=x, r=next_r)
 
                 break
-
-        print(batch[0])
-        binary_output = output.clone().data
-        binary_output = binary_output > 0.5
-        print(binary_output[0])
 
         x = batch.data[0].numpy()
         y = output.data[0].numpy()
@@ -143,5 +139,5 @@ def visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100):
             ax_.set_yticks([])
         plt.show()
 
-checkpoint = "checkpoints/ntm/copy-batch-7500.0--LSTM.model"
-visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=40)
+checkpoint = "checkpoints/ntm/copy-batch-750.0--LSTM.model"
+visualize_sequence(checkpoint, model_type='NTM', cuda=False, seq_len=100)

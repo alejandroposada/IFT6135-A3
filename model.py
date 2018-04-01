@@ -88,11 +88,17 @@ class MLPController(Controller):
       
 
 class NTMReadHead(nn.Module):
-    def __init__(self, use_cuda, memory_feature_size):
+    def __init__(self, use_cuda, memory_feature_size, saved_biases=False):
         super(NTMReadHead, self).__init__()
         self.use_cuda = use_cuda
         self.memory_feature_size = memory_feature_size
-        self.register_parameter('read_bias', Parameter(torch.randn(1, self.memory_feature_size) * 0.01))
+        # self.register_parameter('read_bias', Parameter(torch.randn(1, self.memory_feature_size) * 0.01))
+        if saved_biases:
+            read_bias_np = np.load('biases/ntm-lstm/read_bias.npy')
+            self.read_bias = Variable(torch.from_numpy(read_bias_np))
+        else:
+            self.read_bias = Variable(torch.randn(1, self.memory_feature_size) * 0.01)
+            np.save('biases/ntm-lstm/read_bias.npy', self.read_bias.data.numpy())
 
     def forward(self, w, memory):
         """
@@ -207,9 +213,9 @@ class NTM(nn.Module):
     """
     Neural Turing Machine
     """
-    def __init__(self, num_inputs, num_outputs, batch_size,
-                 controller_size, controller_type, controller_layers,
-                 memory_size, memory_feature_size, integer_shift, use_cuda):
+    def __init__(self, num_inputs, num_outputs, batch_size, controller_size,
+                 controller_type, controller_layers, memory_size, memory_feature_size,
+                 integer_shift, use_cuda, saved_biases=False):
         """Initialize the NTM.
         :param num_inputs: External input size.
         :param num_outputs: External output size.
@@ -246,16 +252,23 @@ class NTM(nn.Module):
                                             batch_size=self.batch_size, use_cuda=self.use_cuda)
 
         self.attention = NTMAttention(use_cuda=self.use_cuda)
-        self.read_head = NTMReadHead(use_cuda=self.use_cuda, memory_feature_size=self.memory_feature_size)
+        self.read_head = NTMReadHead(use_cuda=self.use_cuda,
+                                     memory_feature_size=self.memory_feature_size,
+                                     saved_biases=saved_biases)
         self.write_head = NTMWriteHead(use_cuda=self.use_cuda)
 
         #  Initialize memory
-        # self.register_buffer('mem_bias', Variable(torch.Tensor(self.memory_size, self.memory_feature_size)))
-        #  Initialize memory
-        self.register_parameter('mem_bias', Parameter(torch.Tensor(self.memory_size, self.memory_feature_size)))
-        # Initialize memory bias
-        stdev = 1 / (np.sqrt(self.memory_size + self.memory_feature_size))
-        nn.init.uniform(self.mem_bias, -stdev, stdev)
+        # self.register_parameter('mem_bias', Parameter(torch.Tensor(self.memory_size, self.memory_feature_size)))
+        if saved_biases:
+            mem_bias_np = np.load('biases/ntm-lstm/mem_bias.npy')
+            self.mem_bias = Variable(torch.from_numpy(mem_bias_np))
+        else:
+            self.mem_bias = Variable(torch.Tensor(self.memory_size, self.memory_feature_size))
+            stdev = 1 / (np.sqrt(self.memory_size + self.memory_feature_size))
+            nn.init.uniform(self.mem_bias, -stdev, stdev)
+            np.save('biases/ntm-lstm/mem_bias.npy', self.mem_bias.data.numpy())
+
+        # Initialize memory with mem_bias
         self.init_memory()
 
         #  Initialize weights
