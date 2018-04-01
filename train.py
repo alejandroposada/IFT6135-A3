@@ -13,7 +13,6 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
         checkpoint_interval, total_batches, model_file):
 
     # model_file = "checkpoints/ntm/copy-batch-5120.0--LSTM.model"
-    controller_type = "MLP"
 
     # Seeding
     SEED = 1000
@@ -124,7 +123,7 @@ def run(learning_rate, batch_size, cuda, memory_feature_size, num_inputs, num_ou
             save_checkpoint(ntm, total_examples/batch_size, losses, costs, seq_lens, total_examples, controller_type,
                             num_inputs, num_outputs, controller_size, controller_layers, memory_size,
                             memory_feature_size, integer_shift, batch_size, cuda)
-
+        
             # Evaluate model on this saved checkpoint
             test_cost, prediction, input = evaluate(model=ntm, testset=testing_dataset, batch_size=batch_size,
                                                     memory_feature_size=memory_feature_size,
@@ -174,7 +173,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
                                     batch_Size=batch_size)
 
     # Optimizer type and loss function
-    optimizer = torch.optim.Adam(lstm.parameters(), lr=learning_rate)
+    optimizer = torch.optim.RMSprop(lstm.parameters(), lr=learning_rate, momentum=0.9)
     criterion = torch.nn.BCELoss()
 
     np.random.seed(SEED)  # reset training seed to ensure that batches remain the same between runs!
@@ -199,7 +198,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
             output[:, :, i] = lstm.forward(x)
 
         loss = criterion(output, batch)
-        loss.backward(retain_graph=True)
+        loss.backward()
         optimizer.step()
 
         print("Current Batch Loss:", round(loss.data[0], 3))
@@ -238,7 +237,7 @@ def run_lstm(learning_rate, batch_size, cuda, num_inputs, num_outputs,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='NTM', help='"NTM" or "LSTM" (baseline)')
-    parser.add_argument('--learn_rate', type=float, default=0.0003, help='Learning rate')
+    parser.add_argument('--learn_rate', type=float, default=0.003, help='Learning rate')
     parser.add_argument('--batch_size', type=int, default=16, help='batch_size')
     parser.add_argument('--M', type=int, default=20, help='memory feature size')
     parser.add_argument('--N', type=int, default=128, help='memory size')
