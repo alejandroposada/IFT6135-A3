@@ -178,11 +178,10 @@ class NTMAttention(nn.Module):
         return result
 
     def shift_convolve(self, w_s, s, int_shift):
-        window_length = int_shift * 2 + 1
-        assert s.size(0) == window_length
-        t = torch.cat([w_s[-window_length + 1:], w_s, w_s[:window_length - 1]])
+        assert s.size(0) == int_shift
+        t = torch.cat([w_s[-2:], w_s, w_s[:2]])
         c = F.conv1d(t.view(1, 1, -1), s.view(1, 1, -1)).view(-1)
-        return c[int_shift:-int_shift]
+        return c[1:-1]
 
     def sharpen(self, w_hat, gamma):
         w = w_hat ** gamma
@@ -324,6 +323,10 @@ class NTM(nn.Module):
             self.weight_r = self.weight_r.cuda()
             self.weight_w = self.weight_w.cuda()
 
+        # For visualizing heads
+        self.read_heads = []
+        self.write_heads = []
+
     def init_memory(self):
         self.memory = self.mem_bias.clone().repeat(self.batch_size, 1, 1)
         if self.use_cuda:
@@ -364,7 +367,7 @@ class NTM(nn.Module):
 
         return to_return
 
-    def forward(self, x, r, lstm_h=None, lstm_c=None):
+    def forward(self, x, r, lstm_h=None, lstm_c=None, vis_heads=False):
         """Perform forward pass from the NTM.
 		:param x: current input.
 		:param r: previous read head output.
@@ -383,6 +386,11 @@ class NTM(nn.Module):
         write_params = self.convert_to_params(o, mode='write')
         self.weight_w = self.attention.forward(write_params, self.weight_w, self.memory, self.integer_shift)
         self.memory = self.write_head.forward(self.weight_w, self.memory, write_params)
+
+        # recording heads for visualization
+        if vis_heads:
+            self.read_heads += [self.weight_r]
+            self.write_heads += [self.weight_w]
 
         # Generate Output
         if self.batch_size == 1 and self.controller_type == 'MLP':
