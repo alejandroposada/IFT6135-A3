@@ -409,6 +409,3 @@ def visualize_heads(checkpoint, seq_len=128, model_type='NTM'):
 
     plt.tight_layout()
     plt.show()
-
-checkpoint = 'checkpoints/ntm/copy-batch-1125.0--LSTM.model'
-visualize_sequence(checkpoint, model_type='NTM', seq_len=128)
